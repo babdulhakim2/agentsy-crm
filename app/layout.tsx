@@ -1,10 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
+import { ConvexClientProvider } from "@/lib/convex";
 
 export const metadata: Metadata = {
   title: "Agentsy — your back office, while you run the floor",
   description:
-    "An AI chief of staff for restaurant groups. Daily morning brief, brand-voice review replies, WhatsApp-first guest comms.",
+    "An AI chief of staff for restaurant groups. Daily morning brief, brand-voice review replies, WhatsApp-first customer comms.",
 };
 
 export const viewport: Viewport = {
@@ -25,7 +27,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link rel="stylesheet" href={FONT_HREF} />
       </head>
-      <body>{children}</body>
+      <body>
+        <ClerkProvider afterSignOutUrl="/">
+          <ConvexClientProvider>{children}</ConvexClientProvider>
+        </ClerkProvider>
+      </body>
     </html>
   );
 }

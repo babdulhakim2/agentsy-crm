@@ -4,12 +4,16 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { FORGE } from "@/lib/data";
 import { Icon } from "@/components/icons";
-import { AgentsyMark } from "@/components/atoms";
+import { RestaurantSymbol } from "@/components/atoms/RestaurantMark";
+import { QuickAddCustomer } from "@/components/widgets/QuickAddCustomer";
+import { useSite } from "@/lib/site-context";
 
 export default function HostStandPage() {
   const F = FORGE;
   const router = useRouter();
+  const { activeSiteName, tenantName } = useSite();
   const [sel, setSel] = React.useState<string | null>(null);
+  const [walkInOpen, setWalkInOpen] = React.useState(false);
   const seated = F.tonight.filter((t) => t.status === "arrived").length;
   const expected = F.tonight.filter((t) => t.status === "expected").length;
 
@@ -27,11 +31,29 @@ export default function HostStandPage() {
           flexWrap: "wrap",
         }}
       >
-        <AgentsyMark size={26} />
-        <div>
-          <div style={{ fontFamily: "var(--serif)", fontSize: 22 }}>Host stand · Hackney</div>
-          <div style={{ fontSize: 12, color: "rgba(245,240,230,0.6)" }}>
-            Wed 30 Apr · 18:14 · Service in progress
+        <RestaurantSymbol size={32} />
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: "var(--serif)",
+              fontSize: 22,
+              lineHeight: 1.1,
+              color: "#f5f0e6",
+            }}
+          >
+            {tenantName}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: "rgba(245,240,230,0.55)",
+              fontFamily: "var(--mono)",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              marginTop: 3,
+            }}
+          >
+            Host stand · {activeSiteName === "All sites" ? F.sites[0]?.name : activeSiteName} · Wed 30 Apr · 18:14
           </div>
         </div>
         <div
@@ -46,6 +68,25 @@ export default function HostStandPage() {
           <Stat label="Seated" value={seated} />
           <Stat label="Expected" value={expected} />
           <Stat label="Walk-ins" value={3} />
+          <button
+            type="button"
+            onClick={() => setWalkInOpen(true)}
+            style={{
+              background: "var(--terracotta)",
+              color: "#fff",
+              border: "none",
+              padding: "10px 16px",
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <Icon.Plus s={14} c="#fff" w={2.4} /> Walk-in
+          </button>
           <button
             type="button"
             onClick={() => router.push("/today")}
@@ -165,7 +206,7 @@ export default function HostStandPage() {
                 type="button"
                 onClick={() => setSel(null)}
                 style={{ background: "transparent", border: "none", color: "rgba(245,240,230,0.6)", cursor: "pointer" }}
-                aria-label="Close guest sheet"
+                aria-label="Close customer sheet"
               >
                 <Icon.X s={20} c="rgba(245,240,230,0.6)" />
               </button>
@@ -227,9 +268,9 @@ export default function HostStandPage() {
                 Last 3 visits
               </div>
               {[
-                ["18 Feb", "Hackney · 2", "£148"],
-                ["03 Jan", "Hackney · 4", "£312"],
-                ["12 Dec", "King's X · 2", "£97"],
+                ["18 Feb", `${activeSiteName === "All sites" ? F.sites[0]?.name : activeSiteName} · 2`, "£72"],
+                ["03 Jan", `${activeSiteName === "All sites" ? F.sites[0]?.name : activeSiteName} · 4`, "£148"],
+                ["12 Dec", `${activeSiteName === "All sites" ? F.sites[0]?.name : activeSiteName} · 2`, "£54"],
               ].map(([d, w, s]) => (
                 <div
                   key={d}
@@ -308,7 +349,28 @@ export default function HostStandPage() {
           </div>
         )}
       </div>
+
+      <HostQuickAdd open={walkInOpen} onClose={() => setWalkInOpen(false)} />
     </div>
+  );
+}
+
+function HostQuickAdd({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <QuickAddCustomer
+      open={open}
+      onClose={onClose}
+      source="host_stand"
+      title="Quick walk-in"
+      subtitle="Phone + name. We'll send them a thank-you tonight."
+      defaultTags={["walk-in"]}
+    />
   );
 }
 

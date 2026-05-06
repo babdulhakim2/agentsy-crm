@@ -3,20 +3,24 @@
 import * as React from "react";
 import { Icon } from "@/components/icons";
 import { DesktopHeader } from "@/components/shell/DesktopHeader";
+import { SiteTag } from "@/components/widgets/SiteTag";
+import { useSite } from "@/lib/site-context";
 
 const SAMPLES = [
-  { kind: "Review reply · 5★", body: "Iris, thank you — couldn't agree more about the bread. Hope to see you again. — Maya" },
-  { kind: "Review reply · 2★", body: "I'm sorry, that's not the night we wanted you to have. The wine should never go out warm. I'd love a chance to put it right." },
-  { kind: "WhatsApp reminder", body: "Quick reminder — table for 4 tomorrow at 19:30, Hackney. Reply CHANGE if you need to move it." },
-  { kind: "Win-back", body: "It's been a minute. Spring menu lands Thursday — saved you a Friday two-top in case." },
-  { kind: "IG caption", body: "Brown butter, capers, a quiet Tuesday. The lamb is back on Thursday — first come, no holds." },
-  { kind: "No-show check", body: "Hey — your table's still here, no rush. Running late or do you need to move?" },
+  { site: "Islington", kind: "Review reply · 5★", body: "Iris, thank you — couldn't agree more about the lamb chow mein. Hope to see you again. — Juliet" },
+  { site: "Camden", kind: "Review reply · 2★", body: "I'm sorry, that's not the night we wanted you to have. The food should never go out lukewarm. I'd love a chance to put it right." },
+  { site: "Shoreditch", kind: "WhatsApp reminder", body: "Quick reminder — table for 4 tomorrow at 19:30, Shoreditch. Reply CHANGE if you need to move it." },
+  { site: "Islington", kind: "Win-back", body: "It's been a minute. New spring menu lands Thursday — saved you a Friday two-top in case." },
+  { site: "Camden", kind: "IG caption", body: "Wok hei, sizzle, a quiet Tuesday. Salt-and-pepper lamb back on Thursday — first come, no holds." },
+  { site: "Shoreditch", kind: "No-show check", body: "Hey — your table's still here, no rush. Running late or do you need to move?" },
 ];
 
 export default function VoicePage() {
+  const { activeSiteName, filterByActiveSite } = useSite();
+  const samples = filterByActiveSite(SAMPLES);
   const [toggles, setToggles] = React.useState<Record<string, boolean>>({
     "Never use emojis": true,
-    'Always sign with "Maya"': true,
+    'Always sign with "Juliet"': true,
     "Cap sentences at 22 words": false,
     "Use Oxford comma": false,
   });
@@ -26,7 +30,7 @@ export default function VoicePage() {
       <DesktopHeader
         eyebrow="Brand voice"
         title="How I sound when I write for you."
-        sub="Trained on 184 examples · last refreshed 4 days ago"
+        sub={`Trained on 184 examples · ${activeSiteName} · last refreshed 4 days ago`}
         right={
           <button type="button" className="btn btn-ghost">
             <Icon.Refresh s={16} /> Re-train
@@ -44,7 +48,7 @@ export default function VoicePage() {
                 Warm, plain-spoken, with dry British humour.
                 <br />
                 <span className="serif-i" style={{ color: "var(--ink-3)" }}>
-                  Never exclamation marks. Always signs off &ldquo;Maya&rdquo;.
+                  Never exclamation marks. Always signs off &ldquo;Juliet&rdquo;.
                 </span>
               </div>
             </div>
@@ -53,10 +57,11 @@ export default function VoicePage() {
               Sample bench · rate to tune
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {SAMPLES.map((s, i) => (
+              {samples.map((s, i) => (
                 <div key={i} className="card" style={{ padding: 16 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                     <span className="chip">{s.kind}</span>
+                    <SiteTag site={s.site} subtle />
                     <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                       <button
                         type="button"
@@ -112,6 +117,7 @@ export default function VoicePage() {
               <div className="eyebrow" style={{ marginBottom: 10 }}>
                 Toggles
               </div>
+              {/* Toggle labels reflect the current owner's name */}
               {Object.entries(toggles).map(([k, on]) => (
                 <div
                   key={k}

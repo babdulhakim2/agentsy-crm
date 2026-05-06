@@ -4,10 +4,13 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { FORGE } from "@/lib/data";
 import { ThreadView } from "@/components/widgets/ThreadView";
+import { SiteTag } from "@/components/widgets/SiteTag";
+import { useSite } from "@/lib/site-context";
 
 export default function InboxPage() {
   const F = FORGE;
   const router = useRouter();
+  const { activeSiteName, filterByActiveSite } = useSite();
   const [isDesktop, setIsDesktop] = React.useState(false);
   const [selectedId, setSelectedId] = React.useState<string>(F.threads[0].id);
 
@@ -19,7 +22,8 @@ export default function InboxPage() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  const selected = F.threads.find((t) => t.id === selectedId) ?? F.threads[0];
+  const threads = filterByActiveSite(F.threads);
+  const selected = threads.find((t) => t.id === selectedId) ?? threads[0];
 
   const handleClick = (id: string) => {
     if (isDesktop) {
@@ -33,11 +37,11 @@ export default function InboxPage() {
     <div className="screen-twocol paper-grain">
       <div className="screen-twocol__list">
         <div className="page-title">
-          <div className="eyebrow">Inbox · WhatsApp + email</div>
+          <div className="eyebrow">Inbox · WhatsApp + email · {activeSiteName}</div>
           <div className="h">I take the FAQs. You take the rest.</div>
         </div>
         <div style={{ flex: 1 }}>
-          {F.threads.map((t) => {
+          {threads.map((t) => {
             const active = isDesktop && t.id === selectedId;
             return (
               <button
@@ -50,6 +54,7 @@ export default function InboxPage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                     <span style={{ fontSize: 14, fontWeight: t.unread ? 700 : 500 }}>{t.name}</span>
+                    <SiteTag site={t.site} subtle />
                     {t.ai && (
                       <span className="chip chip-sage" style={{ fontSize: 10.5, padding: "2px 6px" }}>
                         I took this

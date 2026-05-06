@@ -32,6 +32,7 @@ const PROVIDER_MAP: Record<string, { letter: string; bg: string; fg: string }> =
   WhatsApp: { letter: "◉", bg: "#d8ddc9", fg: "#5a6a3f" },
   Instagram: { letter: "⊙", bg: "#f1ddd0", fg: "#b85f3a" },
   Email: { letter: "@", bg: "#ede5d3", fg: "#3a342c" },
+  Trustpilot: { letter: "★", bg: "#d8ddc9", fg: "#5a6a3f" },
 };
 
 export function ProviderMark({ name, size = 36 }: { name: string; size?: number }) {

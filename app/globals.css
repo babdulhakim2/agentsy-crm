@@ -787,6 +787,95 @@ a { color: inherit; text-decoration: none; }
 .tonight-row.selected { background: rgba(184,95,58,0.15); }
 .tonight-row.past { opacity: 0.55; }
 
+/* ── Floating Action Button (Add guest) ── */
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(var(--tabbar-h) + 16px);
+  z-index: 40;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--terracotta);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 22px rgba(184, 95, 58, 0.35), 0 1px 0 rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.fab:active { transform: scale(0.97); }
+@media (min-width: 1024px) {
+  .fab { bottom: 28px; right: 28px; }
+}
+
+/* ── Modal sheet ── */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 22, 18, 0.45);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.18s ease-out both;
+}
+@media (min-width: 1024px) {
+  .sheet-backdrop { align-items: center; }
+}
+.sheet {
+  width: 100%;
+  max-width: 520px;
+  background: var(--card);
+  border-radius: 22px 22px 0 0;
+  padding: 22px 22px max(28px, env(safe-area-inset-bottom));
+  animation: sheetUp 0.22s ease-out both;
+  box-shadow: 0 -10px 40px rgba(26,22,18,0.25);
+}
+@media (min-width: 1024px) {
+  .sheet {
+    border-radius: 18px;
+    box-shadow: 0 30px 60px rgba(26,22,18,0.3);
+  }
+}
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--rule-2);
+  margin: -6px auto 14px;
+}
+@keyframes sheetUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Big tappable input style for service-floor capture */
+.big-input {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 500;
+  background: var(--card-2);
+  border: 1.5px solid var(--rule-2);
+  border-radius: 14px;
+  padding: 16px 16px;
+  color: var(--ink);
+  width: 100%;
+  outline: none;
+  transition: border 0.15s, box-shadow 0.15s;
+  letter-spacing: -0.005em;
+}
+.big-input:focus {
+  border-color: var(--terracotta);
+  box-shadow: 0 0 0 3px var(--terracotta-tint);
+}
+
 /* Approve action row buttons */
 .action-row {
   display: flex;

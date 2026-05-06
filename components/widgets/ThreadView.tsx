@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Icon } from "../icons";
 import type { Thread } from "@/lib/types";
+import { SiteTag } from "./SiteTag";
 
 interface Props {
   thread: Thread;
@@ -34,8 +35,9 @@ export function ThreadView({ thread, onBack, showBack }: Props) {
         <div className="avatar">{thread.name[0]}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14.5, fontWeight: 600 }}>{thread.name}</div>
-          <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
-            WhatsApp · 24h window: 18h left
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+            <SiteTag site={thread.site} subtle />
+            <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>WhatsApp · 24h window: 18h left</span>
           </div>
         </div>
         <button type="button" className="icon-btn" aria-label="Call">

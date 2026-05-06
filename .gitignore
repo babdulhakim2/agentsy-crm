@@ -7,3 +7,6 @@ tmp
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts.bak
+
+# clerk configuration (can include secrets)
+/.clerk/

@@ -2,8 +2,13 @@
 
 import * as React from "react";
 import { DesktopHeader } from "@/components/shell/DesktopHeader";
+import { useSite } from "@/lib/site-context";
 
 export default function SettingsPage() {
+  const { sites } = useSite();
+  const siteCount = sites.length;
+  const planLabel = siteCount > 1 ? `${siteCount} sites · Group plan` : "1 site · Solo plan";
+
   return (
     <div className="screen-desktop">
       <DesktopHeader
@@ -20,9 +25,7 @@ export default function SettingsPage() {
             {[
               ["Daily morning brief", "WhatsApp + email · 08:30", true],
               ["Negative review (≤3★)", "WhatsApp · within 5 minutes", true],
-              ["Integration broken", "WhatsApp + email · within 2 minutes", true],
-              ["Inbound message bot can't handle", "WhatsApp", true],
-              ["Daily covers anomalies", "Email digest · daily", false],
+              ["Campaign approvals", "Email digest · daily", false],
             ].map(([k, v, on]) => (
               <div
                 key={k as string}
@@ -59,11 +62,11 @@ export default function SettingsPage() {
               marginBottom: 12,
             }}
           >
-            <span style={{ fontFamily: "var(--serif)", fontSize: 36 }}>£747</span>
-            <span style={{ color: "var(--ink-3)" }}>/ month · 3 sites · Group plan</span>
+            <span style={{ fontFamily: "var(--serif)", fontSize: 36 }}>£249</span>
+            <span style={{ color: "var(--ink-3)" }}>/ month · {planLabel}</span>
           </div>
           <div style={{ fontSize: 13, color: "var(--ink-3)" }}>
-            Next invoice 1 May. Includes 3,000 WhatsApp marketing messages.
+            Next invoice 1 May. Includes 1,500 WhatsApp marketing messages.
           </div>
         </div>
 

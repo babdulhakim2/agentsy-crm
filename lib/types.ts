@@ -1,4 +1,5 @@
-// Domain types — typed model of the Forge group used across the app.
+// Domain types — the tenant data model used across the app.
+// Currently modeled on the pilot customer (New Wok's Cooking, multi-site London).
 
 export type Recency = "sage" | "amber" | "crimson";
 export type IntegrationStatus = "green" | "amber" | "red";
@@ -37,16 +38,35 @@ export interface SocialDraft {
   site: string;
   kind: string;
   draft: string;
+  /** Image to attach when posting. Path under /public, e.g. /sample-food/sweet-sour-chicken.jpg */
+  imageUrl?: string;
+  /** Short alt for the image; used as a fallback caption if file isn't found. */
+  imageAlt?: string;
 }
 
-export interface Anomaly {
+export interface BirthdayTreat {
   id: string;
-  kind: string;
-  label: string;
-  detail: string;
+  site: string;
+  customerName: string;
+  customerId: string;
+  when: string; // 'Saturday' | '3 days' | etc
+  voucher: string; // 'Free dim sum basket' | '£10 off your next visit'
+  draft: string; // pre-written WhatsApp message
 }
 
-export interface Guest {
+export type PipelineStage = "lead" | "active" | "vip" | "at-risk" | "recovery";
+
+export type CustomerSource =
+  | "walk-in"
+  | "booking"
+  | "referral"
+  | "instagram"
+  | "google"
+  | "whatsapp"
+  | "event"
+  | "other";
+
+export interface Customer {
   id: string;
   initial: string;
   name: string;
@@ -56,6 +76,14 @@ export interface Guest {
   tag: string;
   recency: Recency;
   last: string;
+  /** Where the customer first came from. Optional. */
+  source?: CustomerSource;
+  /** Sales-pipeline stage. Optional — system suggests, owner overrides. */
+  pipelineStage?: PipelineStage;
+  /** Birth month (1-12). Captured optionally at quick-add. */
+  birthMonth?: number;
+  /** Specific day of month if known (1-31). Optional, used to flag "birthday this week". */
+  birthDay?: number;
 }
 
 export interface TonightBooking {
@@ -70,6 +98,7 @@ export interface TonightBooking {
 
 export interface Thread {
   id: string;
+  site: string;
   name: string;
   last: string;
   time: string;
@@ -80,6 +109,7 @@ export interface Thread {
 
 export interface Campaign {
   id: string;
+  site: string;
   name: string;
   status: "sending" | "scheduled" | "sent" | "paused";
   recipients: number;
@@ -119,11 +149,11 @@ export interface ForgeData {
   reviews: Review[];
   winbacks: Winback[];
   social: SocialDraft[];
-  anomalies: Anomaly[];
-  guests: Guest[];
+  customers: Customer[];
   tonight: TonightBooking[];
   threads: Thread[];
   campaigns: Campaign[];
   integrations: Integration[];
   team: TeamMember[];
+  birthdays: BirthdayTreat[];
 }

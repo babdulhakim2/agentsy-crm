@@ -5,17 +5,24 @@ import { FORGE } from "@/lib/data";
 import { Icon } from "@/components/icons";
 import { DesktopHeader } from "@/components/shell/DesktopHeader";
 import { ProviderMark, StatusBadge } from "@/components/atoms";
+import { SiteTag } from "@/components/widgets/SiteTag";
+import { useSite } from "@/lib/site-context";
 
 const TEMPLATES = [
   { t: "Win-back", s: "60-day silent regulars", emoji: "↺" },
-  { t: "Birthday", s: "VIPs in the next 14 days", emoji: "✦" },
+  { t: "Birthday treat", s: "Auto-send the week of, with a voucher", emoji: "🎂" },
   { t: "Seasonal", s: "Menu drop, soft list", emoji: "◐" },
   { t: "Custom", s: "Build from scratch", emoji: "+" },
 ];
 
 export default function CampaignsPage() {
   const F = FORGE;
+  const { activeSite, activeSiteName, filterByActiveSite } = useSite();
   const [building, setBuilding] = React.useState(false);
+  const campaigns = F.campaigns.filter((campaign) =>
+    !activeSite ? true : campaign.site === activeSite.name || campaign.site === "All sites"
+  );
+  const audienceSample = filterByActiveSite(F.customers);
 
   return (
     <div className="screen-desktop">
@@ -53,7 +60,7 @@ export default function CampaignsPage() {
                 <div>Channel</div>
                 <div>Cost</div>
               </div>
-              {F.campaigns.map((c) => (
+              {campaigns.map((c) => (
                 <div
                   key={c.id}
                   style={{
@@ -67,7 +74,10 @@ export default function CampaignsPage() {
                   }}
                 >
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</span>
+                      <SiteTag site={c.site} subtle />
+                    </div>
                     <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2 }}>
                       {c.when ?? (c.sent ? `${c.sent} of ${c.recipients} sent` : "—")}
                     </div>
@@ -114,16 +124,109 @@ export default function CampaignsPage() {
                 ))}
               </div>
             </div>
+
+            {/* Birthday flywheel callout */}
+            <div
+              className="card"
+              style={{
+                marginTop: 18,
+                padding: 18,
+                background: "var(--amber-tint)",
+                borderColor: "rgba(184,133,50,0.3)",
+              }}
+            >
+              <div
+                className="eyebrow"
+                style={{ color: "var(--amber)", marginBottom: 6 }}
+              >
+                Birthday flywheel
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 14,
+                  marginBottom: 12,
+                }}
+                className="responsive-grid-3"
+              >
+                <div>
+                  <div
+                    style={{
+                      fontFamily: "var(--serif)",
+                      fontSize: 26,
+                      lineHeight: 1,
+                    }}
+                  >
+                    1.
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6 }}>
+                    Capture birthdays as they walk in
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>
+                    Optional month chip in the host-stand quick-add. We auto-ask in the post-visit
+                    WhatsApp for everyone else.
+                  </div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontFamily: "var(--serif)",
+                      fontSize: 26,
+                      lineHeight: 1,
+                    }}
+                  >
+                    2.
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6 }}>
+                    Pick a treat once
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>
+                    Free starter, free dessert, 10% off, free bubble tea. Voucher is text-only —
+                    they show the WhatsApp at the till.
+                  </div>
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontFamily: "var(--serif)",
+                      fontSize: 26,
+                      lineHeight: 1,
+                    }}
+                  >
+                    3.
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginTop: 6 }}>
+                    I send it the right week, in your voice
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 2 }}>
+                    Drafts staged in your morning brief. You tap approve. Average redemption in
+                    pilots: 27% within 14 days.
+                  </div>
+                </div>
+              </div>
+              <button type="button" className="btn btn-terracotta" onClick={() => setBuilding(true)}>
+                <Icon.Sparkle s={14} c="#fff" /> Set up the birthday treat
+              </button>
+            </div>
           </>
         ) : (
-          <CampaignBuilder onClose={() => setBuilding(false)} />
+          <CampaignBuilder activeSiteName={activeSiteName} audienceSample={audienceSample} onClose={() => setBuilding(false)} />
         )}
       </div>
     </div>
   );
 }
 
-function CampaignBuilder({ onClose }: { onClose: () => void }) {
+function CampaignBuilder({
+  activeSiteName,
+  audienceSample,
+  onClose,
+}: {
+  activeSiteName: string;
+  audienceSample: typeof FORGE.customers;
+  onClose: () => void;
+}) {
   return (
     <div className="responsive-2col-sticky">
       <div className="card" style={{ padding: 22 }}>
@@ -147,7 +250,7 @@ function CampaignBuilder({ onClose }: { onClose: () => void }) {
           <span className="chip chip-terra">Last visit · 60+ days ago</span>
           <span className="chip chip-terra">Lifetime visits ≥ 3</span>
           <span className="chip chip-terra">Has WhatsApp opt-in</span>
-          <span className="chip">All sites</span>
+          <span className="chip">{activeSiteName}</span>
           <button className="chip chip-ghost" style={{ border: "1px dashed var(--rule-2)" }}>
             <Icon.Plus s={11} /> Filter
           </button>
@@ -205,10 +308,10 @@ function CampaignBuilder({ onClose }: { onClose: () => void }) {
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 14 }}>
             <span style={{ fontFamily: "var(--serif)", fontSize: 42, fontVariantNumeric: "tabular-nums" }}>142</span>
-            <span style={{ fontSize: 12.5, color: "var(--ink-3)" }}>guests match</span>
+            <span style={{ fontSize: 12.5, color: "var(--ink-3)" }}>customers match</span>
           </div>
           <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 10 }}>Sample 5</div>
-          {FORGE.guests.slice(0, 5).map((g) => (
+          {audienceSample.slice(0, 5).map((g) => (
             <div key={g.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "7px 0" }}>
               <div className="avatar" style={{ width: 28, height: 28, fontSize: 11.5 }}>
                 {g.initial}
@@ -234,7 +337,7 @@ function CampaignBuilder({ onClose }: { onClose: () => void }) {
               fontStyle: "italic",
             }}
           >
-            Confirm modal: 142 guests, 2 May 11:00.
+            Confirm modal: 142 customers, 2 May 11:00.
           </div>
         </div>
       </div>

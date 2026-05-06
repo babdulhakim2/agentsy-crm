@@ -4,6 +4,8 @@ import * as React from "react";
 import { FORGE } from "@/lib/data";
 import { Icon } from "@/components/icons";
 import { StarRow } from "@/components/atoms";
+import { SiteTag } from "@/components/widgets/SiteTag";
+import { useSite } from "@/lib/site-context";
 import type { Review } from "@/lib/types";
 
 const TABS = [
@@ -15,13 +17,14 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 const SENT_REVIEWS = [
-  { who: "Iris M.", site: "Hackney", stars: 5, age: "47m ago", txt: "Iris, thank you — couldn't agree more about the bread. Hope to see you again." },
-  { who: "Tom B.", site: "Peckham", stars: 5, age: "3h ago", txt: "Tom — really kind of you to say. Pass our thanks to the team you came with." },
-  { who: "Anonymous", site: "King's Cross", stars: 4, age: "yesterday", txt: "Thank you for the lovely note about the wine list. We'll keep it sharp." },
+  { who: "Iris M.", site: "Islington", stars: 5, age: "47m ago", txt: "Iris, thank you — couldn't agree more about the lamb chow mein. Hope to see you again." },
+  { who: "Tom B.", site: "Camden", stars: 5, age: "3h ago", txt: "Tom — really kind of you to say. Pass our thanks to the team you came with." },
+  { who: "Anonymous", site: "Shoreditch", stars: 4, age: "yesterday", txt: "Thank you for the lovely note about the salt-and-pepper chicken. We'll keep it sharp." },
 ];
 
 export default function ReviewsPage() {
   const F = FORGE;
+  const { activeSiteName, filterByActiveSite } = useSite();
   const [tab, setTab] = React.useState<TabId>("needs");
   const [done, setDone] = React.useState<Record<string, boolean>>({});
   const [autosend, setAutosend] = React.useState(false);
@@ -39,8 +42,10 @@ export default function ReviewsPage() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  const remaining = F.reviews.filter((r) => !done[r.id]);
-  const selected = F.reviews.find((r) => r.id === selectedId) ?? remaining[0];
+  const reviews = filterByActiveSite(F.reviews);
+  const sentReviews = filterByActiveSite(SENT_REVIEWS);
+  const remaining = reviews.filter((r) => !done[r.id]);
+  const selected = reviews.find((r) => r.id === selectedId) ?? remaining[0];
 
   return (
     <div className="screen-twocol paper-grain">
@@ -60,7 +65,7 @@ export default function ReviewsPage() {
           }}
         >
           {TABS.map((t) => {
-            const count = t.id === "needs" ? remaining.length : t.id === "sent" ? 47 : 184;
+            const count = t.id === "needs" ? remaining.length : t.id === "sent" ? sentReviews.length : reviews.length + sentReviews.length;
             return (
               <button
                 key={t.id}
@@ -91,7 +96,7 @@ export default function ReviewsPage() {
             <>
               <div style={{ display: "flex", gap: 6, padding: "12px 14px 0", flexWrap: "wrap" }}>
                 <button type="button" className="chip" style={{ cursor: "pointer" }}>
-                  <Icon.Filter s={12} /> All sites
+                  <Icon.Filter s={12} /> {activeSiteName}
                 </button>
                 <button type="button" className="chip" style={{ cursor: "pointer" }}>
                   ★ Any rating
@@ -116,8 +121,9 @@ export default function ReviewsPage() {
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                             <StarRow value={r.stars} />
                             <span style={{ fontSize: 13.5, fontWeight: 600 }}>{r.author}</span>
+                            <SiteTag site={r.site} subtle />
                             <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
-                              · {r.site} · {r.age}
+                              · {r.age}
                             </span>
                             {r.flagged && (
                               <span className="chip chip-crimson" style={{ marginLeft: "auto", fontSize: 10.5 }}>
@@ -179,12 +185,12 @@ export default function ReviewsPage() {
 
           {tab === "sent" && (
             <div style={{ display: "flex", flexDirection: "column", padding: "12px 14px", gap: 10 }}>
-              {SENT_REVIEWS.map((s, i) => (
+              {sentReviews.map((s, i) => (
                 <article key={i} className="card" style={{ padding: 12, opacity: 0.85 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                     <StarRow value={s.stars} />
                     <span style={{ fontSize: 13, fontWeight: 600 }}>{s.who}</span>
-                    <span style={{ fontSize: 12, color: "var(--ink-3)" }}>· {s.site}</span>
+                    <SiteTag site={s.site} subtle />
                     <span className="chip chip-sage" style={{ marginLeft: "auto" }}>
                       <Icon.Check s={11} /> Sent {s.age}
                     </span>
@@ -197,7 +203,7 @@ export default function ReviewsPage() {
 
           {tab === "all" && (
             <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--ink-3)", fontSize: 13 }}>
-              All 184 reviews · filter to a site or rating to drill in.
+              All {reviews.length + sentReviews.length} visible reviews · filter to a site or rating to drill in.
             </div>
           )}
         </div>
@@ -248,8 +254,9 @@ function FullReviewCard({
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
         <StarRow value={r.stars} />
         <span style={{ fontSize: 13, fontWeight: 600 }}>{r.author}</span>
+        <SiteTag site={r.site} subtle />
         <span style={{ fontSize: 12, color: "var(--ink-3)" }}>
-          · {r.site} · {r.age}
+          · {r.age}
         </span>
         {r.flagged && (
           <span className="chip chip-crimson" style={{ marginLeft: "auto" }}>
@@ -297,8 +304,9 @@ function ReviewDraftEditor({
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <StarRow value={review.stars} size={16} />
         <span style={{ fontSize: 18, fontFamily: "var(--serif)" }}>{review.author}</span>
+        <SiteTag site={review.site} subtle />
         <span style={{ fontSize: 13, color: "var(--ink-3)" }}>
-          · {review.site} · {review.age}
+          · {review.age}
         </span>
         {review.flagged && (
           <span className="chip chip-crimson" style={{ marginLeft: "auto" }}>

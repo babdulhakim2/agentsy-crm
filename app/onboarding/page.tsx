@@ -2,38 +2,70 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { useConvexAuth, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Icon } from "@/components/icons";
 import { AgentsyMark, ProviderMark } from "@/components/atoms";
+import { isConvexReady } from "@/lib/convex";
+import { writeTenantToStorage, type StoredTenant } from "@/lib/tenant-storage";
 
 interface OnboardingState {
   group: string;
   tz: string;
   phone: string;
+  ownerName: string;
+  ownerEmail: string;
+  siteName: string;
+  siteAddress: string;
+  siteCity: string;
+  sitePostcode: string;
   booking: string;
   pos: string;
   voice: string;
+  captions: string;
 }
 
 const initialState: OnboardingState = {
-  group: "The Forge Group",
+  group: "New Wok's Cooking",
   tz: "Europe/London",
   phone: "+44 7700 900123",
+  ownerName: "Juliet",
+  ownerEmail: "juliet@newwokscooking.co",
+  siteName: "Islington",
+  siteAddress: "220 Upper Street",
+  siteCity: "London",
+  sitePostcode: "N1 1RU",
   booking: "ResDiary",
   pos: "Square",
   voice: "warm",
+  captions: "",
 };
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { user, isLoaded } = useUser();
   const [step, setStep] = React.useState(1);
   const [data, setData] = React.useState<OnboardingState>(initialState);
+
+  React.useEffect(() => {
+    if (!isLoaded || !user) return;
+    setData((d) => ({
+      ...d,
+      ownerName: d.ownerName || user.fullName || user.firstName || "",
+      ownerEmail: d.ownerEmail || user.primaryEmailAddress?.emailAddress || "",
+    }));
+  }, [isLoaded, user]);
 
   const set = <K extends keyof OnboardingState>(k: K, v: OnboardingState[K]) =>
     setData((d) => ({ ...d, [k]: v }));
 
   const next = () => setStep((s) => Math.min(8, s + 1));
   const prev = () => setStep((s) => Math.max(1, s - 1));
-  const finish = () => router.push("/today");
+  const finish = React.useCallback(() => {
+    writeTenantToStorage(buildStoredTenant(data, user));
+    router.push("/today");
+  }, [data, router, user]);
 
   return (
     <div className="screen-bleed paper-grain" style={{ maxWidth: 540, margin: "0 auto" }}>
@@ -65,11 +97,11 @@ export default function OnboardingPage() {
       <div style={{ flex: 1, padding: "0 20px 16px" }}>
         {step === 1 && <Step1 />}
         {step === 2 && <Step2 data={data} set={set} />}
-        {step === 3 && <Step3 />}
+        {step === 3 && <Step3 data={data} set={set} />}
         {step === 4 && <Step4 data={data} set={set} />}
         {step === 5 && <Step5 data={data} set={set} />}
-        {step === 6 && <Step6 />}
-        {step === 7 && <Step7 />}
+        {step === 6 && <Step6 data={data} />}
+        {step === 7 && <Step7 data={data} set={set} />}
         {step === 8 && <Step8 data={data} set={set} />}
       </div>
 
@@ -84,12 +116,98 @@ export default function OnboardingPage() {
             {step === 1 ? "Let's go" : "Continue"}
           </button>
         ) : (
-          <button type="button" className="btn btn-terracotta" onClick={finish} style={{ flex: 1 }}>
-            <Icon.Sparkle s={14} c="#fff" /> Train and finish setup
-          </button>
+          <FinishSetupButton data={data} onFinish={finish} />
         )}
       </div>
     </div>
+  );
+}
+
+function buildStoredTenant(data: OnboardingState, user: ReturnType<typeof useUser>["user"]): StoredTenant {
+  const ownerEmail = data.ownerEmail.trim() || user?.primaryEmailAddress?.emailAddress || undefined;
+  return {
+    groupName: data.group.trim() || "My restaurant",
+    ownerName: data.ownerName.trim() || user?.fullName || user?.firstName || "Owner",
+    ownerEmail,
+    timezone: data.tz,
+    primaryPhone: data.phone.trim() || undefined,
+    bookingProvider: data.booking || undefined,
+    posProvider: data.pos || undefined,
+    voiceTone: data.voice || undefined,
+    sites: [
+      {
+        name: data.siteName.trim() || "Main site",
+        address: data.siteAddress.trim() || undefined,
+        city: data.siteCity.trim() || undefined,
+        postcode: data.sitePostcode.trim() || undefined,
+      },
+    ],
+    createdAt: Date.now(),
+  };
+}
+
+function FinishSetupButton({ data, onFinish }: { data: OnboardingState; onFinish: () => void }) {
+  if (isConvexReady()) {
+    return <ConvexFinishSetupButton data={data} onFinish={onFinish} />;
+  }
+  return (
+    <button type="button" className="btn btn-terracotta" onClick={onFinish} style={{ flex: 1 }}>
+      <Icon.Sparkle s={14} c="#fff" /> Train and finish setup
+    </button>
+  );
+}
+
+function ConvexFinishSetupButton({ data, onFinish }: { data: OnboardingState; onFinish: () => void }) {
+  const { user } = useUser();
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const complete = useMutation(api.onboarding.complete);
+  const [saving, setSaving] = React.useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      if (isAuthenticated) {
+        await complete({
+          groupName: data.group,
+          timezone: data.tz,
+          primaryPhone: data.phone,
+          ownerName: data.ownerName || user?.fullName || user?.firstName || undefined,
+          ownerEmail: data.ownerEmail || user?.primaryEmailAddress?.emailAddress || undefined,
+          imageUrl: user?.imageUrl,
+          sites: [
+            {
+              name: data.siteName,
+              address: data.siteAddress,
+              city: data.siteCity,
+              postcode: data.sitePostcode,
+            },
+          ],
+          bookingProvider: data.booking,
+          posProvider: data.pos,
+          voiceTone: data.voice,
+          voiceExamples: data.captions
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean),
+        });
+      }
+    } catch (err) {
+      console.error("Onboarding saved locally but Convex sync failed.", err);
+    } finally {
+      onFinish();
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className="btn btn-terracotta"
+      onClick={submit}
+      disabled={saving || isLoading}
+      style={{ flex: 1, opacity: saving || isLoading ? 0.72 : 1 }}
+    >
+      <Icon.Sparkle s={14} c="#fff" /> {saving ? "Saving setup..." : "Train and finish setup"}
+    </button>
   );
 }
 
@@ -216,6 +334,25 @@ function Step2({
           </select>
         </div>
         <div className="field">
+          <label htmlFor="owner-name">Owner name</label>
+          <input
+            id="owner-name"
+            className="input"
+            value={data.ownerName}
+            onChange={(e) => set("ownerName", e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="owner-email">Owner email</label>
+          <input
+            id="owner-email"
+            className="input"
+            type="email"
+            value={data.ownerEmail}
+            onChange={(e) => set("ownerEmail", e.target.value)}
+          />
+        </div>
+        <div className="field">
           <label htmlFor="phone">
             Where should I send your daily brief?{" "}
             <span style={{ color: "var(--ink-3)", fontWeight: 400 }}>(your WhatsApp)</span>
@@ -232,12 +369,14 @@ function Step2({
   );
 }
 
-function Step3() {
-  const sites = [
-    { name: "Hackney", addr: "142 Mare St, London E8", gbp: "verified" as const },
-    { name: "King's Cross", addr: "14 Caledonian Rd, London N1", gbp: "verified" as const },
-    { name: "Peckham", addr: "57 Rye Lane, London SE15", gbp: "pending" as const },
-  ];
+function Step3({
+  data,
+  set,
+}: {
+  data: OnboardingState;
+  set: <K extends keyof OnboardingState>(k: K, v: OnboardingState[K]) => void;
+}) {
+  const address = [data.siteAddress, data.siteCity, data.sitePostcode].filter(Boolean).join(", ");
   return (
     <div>
       <StepHeader
@@ -246,27 +385,60 @@ function Step3() {
         sub="I'll match each to a Google Business Profile so I can read reviews."
       />
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {sites.map((s) => (
-          <div key={s.name} className="card" style={{ padding: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Icon.Building s={20} c="var(--ink-3)" />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{s.addr}</div>
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <Icon.Building s={20} c="var(--ink-3)" />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{data.siteName || "First site"}</div>
+              <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{address || "Add address"}</div>
+            </div>
+            <span className="chip chip-amber">Match GBP</span>
+          </div>
+          <div style={{ display: "grid", gap: 10 }}>
+            <div className="field">
+              <label htmlFor="site-name">Site name</label>
+              <input
+                id="site-name"
+                className="input"
+                value={data.siteName}
+                onChange={(e) => set("siteName", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="site-address">Street address</label>
+              <input
+                id="site-address"
+                className="input"
+                value={data.siteAddress}
+                onChange={(e) => set("siteAddress", e.target.value)}
+              />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 110px", gap: 10 }}>
+              <div className="field">
+                <label htmlFor="site-city">Town/city</label>
+                <input
+                  id="site-city"
+                  className="input"
+                  value={data.siteCity}
+                  onChange={(e) => set("siteCity", e.target.value)}
+                />
               </div>
-              {s.gbp === "verified" ? (
-                <span className="chip chip-sage">
-                  <Icon.Check s={11} /> GBP matched
-                </span>
-              ) : (
-                <span className="chip chip-amber">Match GBP</span>
-              )}
+              <div className="field">
+                <label htmlFor="site-postcode">Postcode</label>
+                <input
+                  id="site-postcode"
+                  className="input"
+                  value={data.sitePostcode}
+                  onChange={(e) => set("sitePostcode", e.target.value)}
+                />
+              </div>
             </div>
           </div>
-        ))}
+        </div>
         <button
           type="button"
           className="card"
+          disabled
           style={{
             padding: 14,
             display: "flex",
@@ -274,11 +446,12 @@ function Step3() {
             gap: 10,
             border: "1px dashed var(--rule-2)",
             background: "transparent",
-            cursor: "pointer",
+            cursor: "not-allowed",
+            opacity: 0.72,
           }}
         >
           <Icon.Plus s={18} />
-          <span style={{ fontSize: 14, fontWeight: 500 }}>Add another site</span>
+          <span style={{ fontSize: 14, fontWeight: 500 }}>Add more sites after setup</span>
         </button>
       </div>
     </div>
@@ -306,7 +479,7 @@ function Step4({
       <StepHeader
         eyebrow="Step 4 · Bookings"
         title="Where do bookings live today?"
-        sub="Pick one. I'll pull guests, bookings and history."
+        sub="Pick one. I'll pull customers, bookings and history."
       />
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {BOOKING_PROVIDERS.map((p) => (
@@ -409,11 +582,9 @@ function Step5({
   );
 }
 
-function Step6() {
-  const sites = [
-    { name: "Hackney", status: "connected" as const },
-    { name: "King's Cross", status: "connected" as const },
-    { name: "Peckham", status: "verify" as const },
+function Step6({ data }: { data: OnboardingState }) {
+  const sites: Array<{ name: string; status: "connected" | "verify" }> = [
+    { name: data.siteName || "First site", status: "verify" },
   ];
   return (
     <div>
@@ -456,7 +627,13 @@ function Step6() {
   );
 }
 
-function Step7() {
+function Step7({
+  data,
+  set,
+}: {
+  data: OnboardingState;
+  set: <K extends keyof OnboardingState>(k: K, v: OnboardingState[K]) => void;
+}) {
   return (
     <div>
       <StepHeader
@@ -475,7 +652,12 @@ function Step7() {
         </div>
         <div className="field">
           <label htmlFor="biz-phone">Business phone for the brief</label>
-          <input id="biz-phone" className="input" defaultValue="+44 7700 900123" />
+          <input
+            id="biz-phone"
+            className="input"
+            value={data.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
         </div>
         <div
           style={{
@@ -556,7 +738,13 @@ function Step8({
         <div style={{ fontSize: 13.5, fontWeight: 500, marginBottom: 8 }}>
           Paste 3 captions you&apos;ve written
         </div>
-        <textarea className="textarea" rows={3} placeholder="One caption per line…" />
+        <textarea
+          className="textarea"
+          rows={3}
+          placeholder="One caption per line…"
+          value={data.captions}
+          onChange={(e) => set("captions", e.target.value)}
+        />
       </div>
 
       <div className="eyebrow" style={{ marginBottom: 8 }}>

@@ -5,27 +5,38 @@ import { FORGE } from "@/lib/data";
 import { Icon } from "@/components/icons";
 import { ProviderMark, HealthPill } from "@/components/atoms";
 import { DesktopHeader } from "@/components/shell/DesktopHeader";
+import { AddBranchSheet, type BranchPayload } from "@/components/widgets/AddBranchSheet";
+import { ConnectSheet } from "@/components/widgets/ConnectSheet";
+import { useSite } from "@/lib/site-context";
 
 export default function SitesPage() {
   const F = FORGE;
+  const { sites: allSites, activeSite, isAllSites, activeSiteName, addSite } = useSite();
   const [opened, setOpened] = React.useState<string | null>("Square");
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [connectFor, setConnectFor] = React.useState<string | null>(null);
+
+  const handleAdd = (b: BranchPayload) => {
+    addSite({ name: b.name, address: b.address });
+  };
+  const visibleSites = isAllSites ? allSites : activeSite ? [activeSite] : allSites;
 
   return (
     <div className="screen-desktop">
       <DesktopHeader
-        eyebrow="Sites & integrations"
-        title="Every connection, every problem, in one view."
-        sub="Anything broken interrupts the morning brief. Everything else just works."
+        eyebrow="Branches & integrations"
+        title="Every branch, every connection, every problem."
+        sub={`${activeSiteName}. Anything broken interrupts the morning brief. Everything else just works.`}
         right={
-          <button type="button" className="btn btn-ghost">
-            <Icon.Plus s={16} /> Add a site
+          <button type="button" className="btn btn-terracotta" onClick={() => setAddOpen(true)}>
+            <Icon.Plus s={16} c="#fff" /> Add a branch
           </button>
         }
       />
       <div className="desk-content">
-        {/* Sites overview */}
+        {/* Branches overview */}
         <div className="responsive-grid-3" style={{ marginBottom: 22 }}>
-          {F.sites.map((s) => (
+          {visibleSites.map((s) => (
             <div key={s.id} className="card" style={{ padding: 18 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <Icon.Building s={18} c="var(--ink-3)" />
@@ -38,7 +49,7 @@ export default function SitesPage() {
                 {[
                   { t: "GBP", c: "sage" as const },
                   { t: "Bookings", c: "sage" as const },
-                  { t: "POS", c: s.id === "hackney" ? ("crimson" as const) : ("sage" as const) },
+                  { t: "POS", c: s.id === "islington" ? ("crimson" as const) : ("sage" as const) },
                   { t: "WhatsApp", c: "sage" as const },
                 ].map((p) => (
                   <span
@@ -81,7 +92,7 @@ export default function SitesPage() {
               flexWrap: "wrap",
             }}
           >
-            <div className="eyebrow">All integrations · 6 connected, 1 needs attention</div>
+            <div className="eyebrow">{activeSiteName} integrations · 6 connected</div>
             <button
               type="button"
               className="btn-soft"
@@ -235,6 +246,7 @@ export default function SitesPage() {
               "Lightspeed",
               "Toast",
               "Google Business Profile",
+              "Trustpilot",
               "WhatsApp",
               "Instagram",
               "Email",
@@ -242,6 +254,7 @@ export default function SitesPage() {
               <button
                 key={p}
                 type="button"
+                onClick={() => setConnectFor(p)}
                 className="card"
                 style={{
                   padding: 14,
@@ -261,6 +274,9 @@ export default function SitesPage() {
           </div>
         </div>
       </div>
+
+      <AddBranchSheet open={addOpen} onClose={() => setAddOpen(false)} onAdd={handleAdd} />
+      <ConnectSheet provider={connectFor} onClose={() => setConnectFor(null)} />
     </div>
   );
 }

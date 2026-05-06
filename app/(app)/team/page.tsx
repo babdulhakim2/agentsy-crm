@@ -4,15 +4,23 @@ import * as React from "react";
 import { FORGE } from "@/lib/data";
 import { Icon } from "@/components/icons";
 import { DesktopHeader } from "@/components/shell/DesktopHeader";
+import { SiteTag } from "@/components/widgets/SiteTag";
+import { useSite } from "@/lib/site-context";
 
 export default function TeamPage() {
   const F = FORGE;
+  const { activeSite, activeSiteName, isAllSites } = useSite();
+  const team = F.team.filter((member) => {
+    if (!activeSite) return true;
+    return member.sites === "All sites" || member.sites.includes(activeSite.name);
+  });
+
   return (
     <div className="screen-desktop">
       <DesktopHeader
         eyebrow="Team & access"
         title="Add managers and hosts without giving everyone everything."
-        sub="Owner · Manager · Host. Site-scoped."
+        sub={`Owner · Manager · Host. ${activeSiteName}.`}
         right={
           <button type="button" className="btn btn-terracotta">
             <Icon.Plus s={16} c="#fff" /> Invite
@@ -41,7 +49,7 @@ export default function TeamPage() {
             <div>Last active</div>
             <div></div>
           </div>
-          {F.team.map((u) => (
+          {team.map((u) => (
             <div
               key={u.id}
               style={{
@@ -66,7 +74,13 @@ export default function TeamPage() {
                   {u.role.split(" · ")[0]}
                 </span>
               </div>
-              <div style={{ fontSize: 13 }}>{u.sites}</div>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {isAllSites ? (
+                  u.sites.split(" · ").map((site) => <SiteTag key={site} site={site} subtle />)
+                ) : (
+                  <span style={{ fontSize: 13 }}>{u.sites}</span>
+                )}
+              </div>
               <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>{u.last}</div>
               <div style={{ textAlign: "right" }}>
                 <button
@@ -97,7 +111,7 @@ export default function TeamPage() {
           <div style={{ flex: 1, fontSize: 13.5, lineHeight: 1.5, minWidth: 220 }}>
             <b>Tip.</b>{" "}
             <span className="serif-i">
-              Add Sam at Hackney so she can see her site without bothering you.
+              Add Sam to {activeSiteName === "All sites" ? "a branch" : activeSiteName} so she can see her site without bothering you.
             </span>
           </div>
           <button type="button" className="btn btn-ghost" style={{ padding: "8px 14px", fontSize: 13 }}>

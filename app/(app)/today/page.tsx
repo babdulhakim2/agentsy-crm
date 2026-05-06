@@ -4,24 +4,45 @@ import * as React from "react";
 import Link from "next/link";
 import { FORGE } from "@/lib/data";
 import { Icon } from "@/components/icons";
-import { AgentsyMark, SectionHeader, StarRow, HealthPill } from "@/components/atoms";
+import { SectionHeader, StarRow } from "@/components/atoms";
+import { RestaurantSymbol } from "@/components/atoms/RestaurantMark";
+import { QuickAddCustomer, QuickAddFab } from "@/components/widgets/QuickAddCustomer";
+import { FoodImage } from "@/components/widgets/FoodImage";
+import { useSite } from "@/lib/site-context";
+import { ImageLightbox } from "@/components/widgets/ImageLightbox";
+import { SiteTag } from "@/components/widgets/SiteTag";
 
 export default function TodayPage() {
   const F = FORGE;
+  const { activeSiteName, tenantName, ownerName, sites, activeSite, isAllSites, filterByActiveSite } = useSite();
+  const visibleSites = isAllSites ? sites : activeSite ? [activeSite] : sites;
+  const totalCovers = visibleSites.reduce((sum, site) => sum + site.covers, 0) || F.totalCovers;
   const [open, setOpen] = React.useState({
     reviews: true,
+    birthdays: false,
     winbacks: false,
     social: false,
-    anomalies: false,
   });
   const [approved, setApproved] = React.useState<Record<string, boolean>>({});
   const [skipped, setSkipped] = React.useState<Record<string, boolean>>({});
   const [editing, setEditing] = React.useState<string | null>(null);
+  const [drafts, setDrafts] = React.useState<Record<string, string>>({});
   const [allClear, setAllClear] = React.useState(false);
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [preview, setPreview] = React.useState<{ src?: string; alt?: string; caption?: string } | null>(null);
 
-  const reviewsLeft = F.reviews.filter((r) => !approved[r.id] && !skipped[r.id]);
-  const winbacksLeft = F.winbacks.filter((r) => !approved[r.id] && !skipped[r.id]);
-  const socialLeft = F.social.filter((r) => !approved[r.id] && !skipped[r.id]);
+  const draftFor = (id: string, fallback: string) => drafts[id] ?? fallback;
+  const updateDraft = (id: string, value: string) =>
+    setDrafts((d) => ({ ...d, [id]: value }));
+
+  const reviews = filterByActiveSite(F.reviews);
+  const winbacks = filterByActiveSite(F.winbacks);
+  const social = filterByActiveSite(F.social);
+  const birthdays = filterByActiveSite(F.birthdays);
+  const reviewsLeft = reviews.filter((r) => !approved[r.id] && !skipped[r.id]);
+  const winbacksLeft = winbacks.filter((r) => !approved[r.id] && !skipped[r.id]);
+  const socialLeft = social.filter((r) => !approved[r.id] && !skipped[r.id]);
+  const birthdaysLeft = birthdays.filter((r) => !approved[r.id] && !skipped[r.id]);
 
   const flash = (id: string) => setApproved((a) => ({ ...a, [id]: true }));
   const skip = (id: string) => setSkipped((s) => ({ ...s, [id]: true }));
@@ -29,20 +50,39 @@ export default function TodayPage() {
   return (
     <div className="screen-dashboard paper-grain">
       <div className="screen-dashboard__main">
-        {/* Header */}
-        <div style={{ padding: "14px 4px 10px", display: "flex", alignItems: "center", gap: 10 }}>
-          <AgentsyMark size={26} />
+        {/* Header — restaurant brand first, owner greeting underneath */}
+        <div style={{ padding: "14px 4px 12px", display: "flex", alignItems: "center", gap: 12 }}>
+          <RestaurantSymbol size={36} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="eyebrow">
-              {F.date} · {F.group}
+            <div
+              style={{
+                fontFamily: "var(--serif)",
+                fontSize: 18,
+                lineHeight: 1.1,
+                fontWeight: 500,
+              }}
+            >
+              {tenantName}
             </div>
-            <div style={{ fontFamily: "var(--serif)", fontSize: 22, lineHeight: 1.1, marginTop: 2 }}>
-              Good morning, {F.owner}.
+            <div className="eyebrow" style={{ marginTop: 2 }}>
+              {F.date} · {activeSiteName}
             </div>
           </div>
           <Link href="/settings" className="icon-btn" aria-label="Settings">
             <Icon.Settings s={18} />
           </Link>
+        </div>
+        <div style={{ padding: "0 4px 14px" }}>
+          <div
+            style={{
+              fontFamily: "var(--serif)",
+              fontSize: 26,
+              lineHeight: 1.1,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Good morning, {ownerName}.
+          </div>
         </div>
 
         <div style={{ flex: 1, padding: "4px 0 12px" }}>
@@ -61,34 +101,38 @@ export default function TodayPage() {
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {F.totalCovers}
+                  {totalCovers}
                 </span>
-                <span style={{ color: "var(--ink-3)", fontSize: 14 }}>across {F.sites.length} sites</span>
+                <span style={{ color: "var(--ink-3)", fontSize: 14 }}>
+                  {visibleSites.length === 1 ? `at ${visibleSites[0].name}` : `across ${visibleSites.length} sites`}
+                </span>
               </div>
-              <div style={{ display: "flex", gap: 0, marginBottom: 16 }}>
-                {F.sites.map((s, i) => (
-                  <div
-                    key={s.id}
-                    style={{
-                      flex: 1,
-                      paddingRight: 10,
-                      paddingLeft: i > 0 ? 10 : 0,
-                      borderRight: i < F.sites.length - 1 ? "1px solid var(--rule)" : "none",
-                    }}
-                  >
+              {visibleSites.length > 1 && (
+                <div style={{ display: "flex", gap: 0, marginBottom: 16 }}>
+                  {visibleSites.map((s, i) => (
                     <div
+                      key={s.id}
                       style={{
-                        fontSize: 22,
-                        fontFamily: "var(--serif)",
-                        fontVariantNumeric: "tabular-nums",
+                        flex: 1,
+                        paddingRight: 10,
+                        paddingLeft: i > 0 ? 10 : 0,
+                        borderRight: i < visibleSites.length - 1 ? "1px solid var(--rule)" : "none",
                       }}
                     >
-                      {s.covers}
+                      <div
+                        style={{
+                          fontSize: 22,
+                          fontFamily: "var(--serif)",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {s.covers}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 1 }}>{s.name}</div>
                     </div>
-                    <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 1 }}>{s.name}</div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
               {!allClear ? (
                 <button
                   type="button"
@@ -122,13 +166,13 @@ export default function TodayPage() {
           {/* Reviews */}
           <SectionHeader
             title="Reviews to send"
-            count={`${reviewsLeft.length} of ${F.reviews.length}`}
+            count={`${reviewsLeft.length} of ${reviews.length}`}
             expanded={open.reviews}
             onClick={() => setOpen((o) => ({ ...o, reviews: !o.reviews }))}
           />
           {open.reviews && (
             <div style={{ padding: "4px 0 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {F.reviews.map((r) => {
+              {reviews.map((r) => {
                 if (skipped[r.id]) return null;
                 const isApproved = approved[r.id];
                 return (
@@ -140,9 +184,8 @@ export default function TodayPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                       <StarRow value={r.stars} />
                       <span style={{ fontSize: 12.5, fontWeight: 600 }}>{r.author}</span>
-                      <span style={{ fontSize: 12, color: "var(--ink-3)" }}>
-                        · {r.site} · {r.age}
-                      </span>
+                      <SiteTag site={r.site} subtle />
+                      <span style={{ fontSize: 12, color: "var(--ink-3)" }}>· {r.age}</span>
                       {r.flagged && (
                         <span className="chip chip-crimson" style={{ marginLeft: "auto" }}>
                           Soft start
@@ -165,9 +208,15 @@ export default function TodayPage() {
                         <Icon.Sparkle s={11} c="var(--terracotta)" /> Draft reply
                       </div>
                       {editing === r.id ? (
-                        <textarea className="textarea" defaultValue={r.draft} autoFocus style={{ fontSize: 13.5 }} />
+                        <textarea
+                          className="textarea"
+                          autoFocus
+                          style={{ fontSize: 13.5 }}
+                          value={draftFor(r.id, r.draft)}
+                          onChange={(e) => updateDraft(r.id, e.target.value)}
+                        />
                       ) : (
-                        <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{r.draft}</div>
+                        <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{draftFor(r.id, r.draft)}</div>
                       )}
                     </div>
 
@@ -197,13 +246,13 @@ export default function TodayPage() {
           {/* Win-backs */}
           <SectionHeader
             title="Regulars I'd nudge today"
-            count={`${winbacksLeft.length} of ${F.winbacks.length}`}
+            count={`${winbacksLeft.length} of ${winbacks.length}`}
             expanded={open.winbacks}
             onClick={() => setOpen((o) => ({ ...o, winbacks: !o.winbacks }))}
           />
           {open.winbacks && (
             <div style={{ padding: "4px 0 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {F.winbacks.map((w) => {
+              {winbacks.map((w) => {
                 if (skipped[w.id]) return null;
                 const ok = approved[w.id];
                 return (
@@ -216,8 +265,9 @@ export default function TodayPage() {
                       <div className="avatar">{w.name[0]}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 600 }}>{w.name}</div>
-                        <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
-                          {w.site} · last seen {w.last}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+                          <SiteTag site={w.site} subtle />
+                          <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>last seen {w.last}</span>
                         </div>
                       </div>
                       <span className="chip">{w.tag}</span>
@@ -227,19 +277,31 @@ export default function TodayPage() {
                         borderLeft: "2px solid var(--terracotta)",
                         paddingLeft: 10,
                         marginBottom: 10,
-                        fontSize: 13.5,
-                        lineHeight: 1.5,
                       }}
                     >
-                      {w.draft}
+                      {editing === w.id ? (
+                        <textarea
+                          className="textarea"
+                          autoFocus
+                          style={{ fontSize: 13.5 }}
+                          value={draftFor(w.id, w.draft)}
+                          onChange={(e) => updateDraft(w.id, e.target.value)}
+                        />
+                      ) : (
+                        <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{draftFor(w.id, w.draft)}</div>
+                      )}
                     </div>
                     {!ok && (
                       <div className="action-row">
-                        <button type="button" className="soft-pill">
-                          Edit
+                        <button
+                          type="button"
+                          className="soft-pill"
+                          onClick={() => setEditing(editing === w.id ? null : w.id)}
+                        >
+                          <Icon.Edit s={14} /> {editing === w.id ? "Done" : "Edit"}
                         </button>
                         <button type="button" className="approve-pill" onClick={() => flash(w.id)}>
-                          Send WhatsApp
+                          <Icon.Send s={14} c="#fff" /> Send WhatsApp
                         </button>
                         <button type="button" className="soft-pill" onClick={() => skip(w.id)}>
                           Skip
@@ -252,83 +314,212 @@ export default function TodayPage() {
             </div>
           )}
 
+          {/* Birthdays this week */}
+          <SectionHeader
+            title="Birthdays this week"
+            count={`${birthdaysLeft.length} of ${birthdays.length}`}
+            expanded={open.birthdays}
+            onClick={() => setOpen((o) => ({ ...o, birthdays: !o.birthdays }))}
+          />
+          {open.birthdays && (
+            <div style={{ padding: "4px 0 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {birthdays.map((b) => {
+                const ok = approved[b.id];
+                if (skipped[b.id]) return null;
+                return (
+                  <article
+                    key={b.id}
+                    className={"card fade-up" + (ok ? " approve-flash" : "")}
+                    style={{ padding: 16, opacity: ok ? 0.55 : 1 }}
+                  >
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}>
+                      <div
+                        className="avatar amber"
+                        style={{ background: "var(--amber-tint)", color: "var(--amber)" }}
+                      >
+                        🎂
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>{b.customerName}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+                          <SiteTag site={b.site} subtle />
+                          <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
+                            Birthday {b.when} · WhatsApp opt-in
+                          </span>
+                        </div>
+                      </div>
+                      <span className="chip chip-amber" style={{ flexShrink: 0 }}>
+                        On us: {b.voucher}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        borderLeft: "2px solid var(--terracotta)",
+                        paddingLeft: 10,
+                        marginBottom: 10,
+                      }}
+                    >
+                      {editing === b.id ? (
+                        <textarea
+                          className="textarea"
+                          autoFocus
+                          style={{ fontSize: 13.5 }}
+                          value={draftFor(b.id, b.draft)}
+                          onChange={(e) => updateDraft(b.id, e.target.value)}
+                        />
+                      ) : (
+                        <div style={{ fontSize: 13.5, lineHeight: 1.5 }}>{draftFor(b.id, b.draft)}</div>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--ink-3)",
+                        marginBottom: 10,
+                        fontStyle: "italic",
+                      }}
+                    >
+                      Voucher is text-only — they show this WhatsApp at the till. We track
+                      redemption next month when POS catches up.
+                    </div>
+                    {!ok && (
+                      <div className="action-row">
+                        <button
+                          type="button"
+                          className="soft-pill"
+                          onClick={() => setEditing(editing === b.id ? null : b.id)}
+                        >
+                          <Icon.Edit s={14} /> {editing === b.id ? "Done" : "Edit"}
+                        </button>
+                        <button type="button" className="approve-pill" onClick={() => flash(b.id)}>
+                          <Icon.Send s={14} c="#fff" /> Send treat
+                        </button>
+                        <button type="button" className="soft-pill" onClick={() => skip(b.id)}>
+                          Skip
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+              <div
+                className="card"
+                style={{
+                  padding: 14,
+                  background: "var(--card-2)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  fontSize: 12.5,
+                  color: "var(--ink-2)",
+                  lineHeight: 1.5,
+                }}
+              >
+                <Icon.Sparkle s={16} c="var(--terracotta)" />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  Don&apos;t have birthdays for everyone? I&apos;ll quietly ask each customer in their
+                  next WhatsApp thank-you. Already collected 38 birthdays this month.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Social */}
           <SectionHeader
             title="Social posts drafted"
-            count={socialLeft.length}
+            count={`${socialLeft.length} of ${social.length}`}
             expanded={open.social}
             onClick={() => setOpen((o) => ({ ...o, social: !o.social }))}
           />
           {open.social && (
-            <div style={{ padding: "4px 0 14px" }}>
-              {F.social.map((s) => (
-                <article key={s.id} className="card" style={{ padding: 16 }}>
-                  <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                    <div className="placeholder-img" style={{ width: 86, height: 86, fontSize: 9 }}>
-                      IG photo
-                      <br />· lamb shot ·
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 3 }}>
-                        {s.kind} · {s.site}
-                      </div>
-                      <div style={{ fontSize: 12.5, color: "var(--ink-3)" }}>
-                        Phase 2 · I&apos;ll show you the draft, you copy &amp; paste
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      borderLeft: "2px solid var(--terracotta)",
-                      paddingLeft: 10,
-                      fontSize: 13.5,
-                      lineHeight: 1.5,
-                    }}
+            <div style={{ padding: "4px 0 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+              {social.map((s) => {
+                const ok = approved[s.id];
+                if (skipped[s.id]) return null;
+                return (
+                  <article
+                    key={s.id}
+                    className={"card fade-up" + (ok ? " approve-flash" : "")}
+                    style={{ padding: 0, opacity: ok ? 0.55 : 1, overflow: "hidden" }}
                   >
-                    {s.draft}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-
-          {/* Anomalies */}
-          <SectionHeader
-            title="Anomalies"
-            count={F.anomalies.length}
-            expanded={open.anomalies}
-            onClick={() => setOpen((o) => ({ ...o, anomalies: !o.anomalies }))}
-          />
-          {open.anomalies && (
-            <div style={{ padding: "4px 0 14px" }}>
-              {F.anomalies.map((a) => (
-                <article
-                  key={a.id}
-                  className="card"
-                  style={{
-                    padding: 16,
-                    background: "var(--crimson-tint)",
-                    borderColor: "rgba(162, 58, 46, 0.2)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
-                    <Icon.AlertTriangle s={18} c="var(--crimson)" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: "var(--crimson)" }}>{a.label}</div>
-                      <div style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 4, lineHeight: 1.4 }}>
-                        {a.detail}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPreview({ src: s.imageUrl, alt: s.imageAlt, caption: draftFor(s.id, s.draft) })
+                      }
+                      aria-label="Preview image"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        padding: 0,
+                        border: "none",
+                        background: "transparent",
+                        cursor: "zoom-in",
+                      }}
+                    >
+                      <FoodImage
+                        src={s.imageUrl}
+                        alt={s.imageAlt}
+                        caption={s.imageAlt}
+                        height={200}
+                        rounded={0}
+                      />
+                    </button>
+                    <div style={{ padding: 14 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <span className="chip chip-terra">{s.kind}</span>
+                        <SiteTag site={s.site} subtle />
                       </div>
+                      {editing === s.id ? (
+                        <textarea
+                          className="textarea"
+                          autoFocus
+                          style={{ fontSize: 13.5, marginBottom: 12 }}
+                          value={draftFor(s.id, s.draft)}
+                          onChange={(e) => updateDraft(s.id, e.target.value)}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            borderLeft: "2px solid var(--terracotta)",
+                            paddingLeft: 10,
+                            fontSize: 13.5,
+                            lineHeight: 1.55,
+                            marginBottom: 12,
+                          }}
+                        >
+                          {draftFor(s.id, s.draft)}
+                        </div>
+                      )}
+                      {!ok && (
+                        <div className="action-row">
+                          <button
+                            type="button"
+                            className="soft-pill"
+                            onClick={() => setEditing(editing === s.id ? null : s.id)}
+                          >
+                            <Icon.Edit s={14} /> {editing === s.id ? "Done" : "Edit"}
+                          </button>
+                          <button type="button" className="approve-pill" onClick={() => flash(s.id)}>
+                            <Icon.Send s={14} c="#fff" /> Schedule post
+                          </button>
+                          <button type="button" className="soft-pill" onClick={() => skip(s.id)}>
+                            Skip
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <Link
-                    href="/sites"
-                    className="btn btn-terracotta"
-                    style={{ marginTop: 4, padding: "8px 14px", fontSize: 13, borderRadius: 8 }}
-                  >
-                    Reconnect Square
-                  </Link>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           )}
 
@@ -340,24 +531,110 @@ export default function TodayPage() {
       <aside className="screen-dashboard__rail" aria-label="At a glance">
         <TodayRail />
       </aside>
+
+      <QuickAddFab onClick={() => setAddOpen(true)} />
+      <QuickAddCustomer
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        source="manual"
+        title="Add a customer"
+        subtitle="Capture a walk-in or new contact."
+      />
+      <ImageLightbox
+        open={!!preview}
+        onClose={() => setPreview(null)}
+        src={preview?.src}
+        alt={preview?.alt}
+        caption={preview?.caption}
+      />
     </div>
   );
 }
 
 function TodayRail() {
   const F = FORGE;
-  const broken = F.integrations.filter((i) => i.status === "red").length;
-  const stale = F.integrations.filter((i) => i.status === "amber").length;
-  const upcoming = F.campaigns.filter((c) => c.status === "scheduled" || c.status === "sending");
+  const { sites, activeSite, isAllSites, filterByActiveSite } = useSite();
+  const visibleSites = isAllSites ? sites : activeSite ? [activeSite] : sites;
+  const upcoming = F.campaigns.filter(
+    (c) =>
+      (c.status === "scheduled" || c.status === "sending") &&
+      (!activeSite || c.site === activeSite.name || c.site === "All sites")
+  );
+  const birthdaysThisWeek = filterByActiveSite(F.birthdays).slice(0, 3);
 
   return (
     <>
+      {/* Birthdays this week — small, glanceable, drives data collection */}
+      <div>
+        <div
+          className="eyebrow"
+          style={{ marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}
+        >
+          🎂 Birthdays this week
+        </div>
+        <div className="card" style={{ padding: 12, background: "var(--card-2)" }}>
+          {birthdaysThisWeek.map((b, i, arr) => (
+            <div
+              key={b.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "8px 0",
+                borderBottom: i < arr.length - 1 ? "1px solid var(--rule)" : "none",
+              }}
+            >
+              <div
+                className="avatar"
+                style={{
+                  width: 28,
+                  height: 28,
+                  fontSize: 12,
+                  background: "var(--amber-tint)",
+                  color: "var(--amber)",
+                }}
+              >
+                {b.customerName[0]}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600 }}>{b.customerName}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 2, minWidth: 0 }}>
+                  <SiteTag site={b.site} subtle />
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      color: "var(--ink-3)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {b.when} · {b.voucher}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 11,
+              color: "var(--ink-3)",
+              fontStyle: "italic",
+              lineHeight: 1.4,
+            }}
+          >
+            38 birthdays captured this month — open the brief to send treats.
+          </div>
+        </div>
+      </div>
+
       <div>
         <div className="eyebrow" style={{ marginBottom: 10 }}>
           Sites · today
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {F.sites.map((s) => (
+          {visibleSites.map((s) => (
             <div
               key={s.id}
               className="card"
@@ -396,51 +673,6 @@ function TodayRail() {
 
       <div>
         <div className="eyebrow" style={{ marginBottom: 10 }}>
-          Integrations
-        </div>
-        <div className="card" style={{ padding: 14, background: "var(--card-2)" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              marginBottom: 12,
-            }}
-          >
-            <span style={{ fontFamily: "var(--serif)", fontSize: 28, lineHeight: 1 }}>
-              {F.integrations.length - broken - stale}/{F.integrations.length}
-            </span>
-            <span className="tag-mono">healthy</span>
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-            <HealthPill status="green" />
-            {stale > 0 && <HealthPill status="amber" />}
-            {broken > 0 && <HealthPill status="red" />}
-          </div>
-          {broken > 0 && (
-            <Link
-              href="/sites"
-              className="btn-soft"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 12px",
-                borderRadius: 8,
-                fontSize: 12.5,
-                width: "100%",
-                justifyContent: "center",
-                textDecoration: "none",
-              }}
-            >
-              <Icon.AlertTriangle s={14} c="var(--crimson)" /> Reconnect Square
-            </Link>
-          )}
-        </div>
-      </div>
-
-      <div>
-        <div className="eyebrow" style={{ marginBottom: 10 }}>
           Upcoming campaigns
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -457,7 +689,10 @@ function TodayRail() {
                 color: "inherit",
               }}
             >
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{c.name}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</span>
+                <SiteTag site={c.site} subtle />
+              </div>
               <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
                 {c.when ?? `${c.sent ?? 0} of ${c.recipients} sent`} · {c.channel} · {c.cost}
               </div>
@@ -474,7 +709,7 @@ function TodayRail() {
           {[
             { href: "/inbox", label: "Inbox", I: Icon.Inbox },
             { href: "/reviews", label: "Reviews", I: Icon.Star },
-            { href: "/guests", label: "Guests", I: Icon.Users },
+            { href: "/customers", label: "Customers", I: Icon.Users },
             { href: "/campaigns", label: "Campaigns", I: Icon.Send },
           ].map((q) => {
             const I = q.I;

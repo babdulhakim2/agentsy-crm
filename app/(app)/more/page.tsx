@@ -3,11 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { Icon } from "@/components/icons";
+import { useSite } from "@/lib/site-context";
 
 const ITEMS = [
   { href: "/campaigns", label: "Campaigns", sub: "4 active · 2 scheduled", Icon: Icon.Send },
   { href: "/voice", label: "Brand voice", sub: "Trained · last refreshed 4 days ago", Icon: Icon.Sparkle },
-  { href: "/sites", label: "Sites & integrations", sub: "3 sites · 1 needs attention", Icon: Icon.Building, badge: 1 },
+  { href: "/sites", label: "Sites & integrations", sub: "1 site · 1 needs attention", Icon: Icon.Building, badge: 1 },
   { href: "/team", label: "Team", sub: "5 people · 1 invite pending", Icon: Icon.Users },
   { href: "/settings", label: "Settings · billing", sub: "Per-site · Pro plan", Icon: Icon.Settings },
   { href: "/host", label: "Open host stand (tablet)", sub: "For Jess on the door", Icon: Icon.Calendar },
@@ -15,6 +16,13 @@ const ITEMS = [
 ];
 
 export default function MorePage() {
+  const { sites } = useSite();
+  const items = ITEMS.map((item) => {
+    if (item.href === "/sites") return { ...item, sub: `${sites.length} sites · integrations` };
+    if (item.href === "/settings") return { ...item, sub: sites.length > 1 ? "Group plan · billing" : "Solo plan · billing" };
+    return item;
+  });
+
   return (
     <div className="screen-desktop paper-grain">
       <div className="desk-header">
@@ -36,7 +44,7 @@ export default function MorePage() {
       </div>
       <div className="desk-content">
         <div className="responsive-grid-3" style={{ gap: 14 }}>
-          {ITEMS.map((it) => {
+          {items.map((it) => {
             const I = it.Icon;
             return (
               <Link

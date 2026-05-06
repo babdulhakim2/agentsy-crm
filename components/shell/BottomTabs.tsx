@@ -7,7 +7,7 @@ import { Icon } from "../icons";
 
 const TABS = [
   { id: "today", href: "/today", label: "Today", Icon: Icon.Home },
-  { id: "guests", href: "/guests", label: "Guests", Icon: Icon.Users },
+  { id: "customers", href: "/customers", label: "Customers", Icon: Icon.Users },
   { id: "reviews", href: "/reviews", label: "Reviews", Icon: Icon.Star },
   { id: "inbox", href: "/inbox", label: "Inbox", Icon: Icon.Inbox },
   { id: "more", href: "/more", label: "More", Icon: Icon.More },
