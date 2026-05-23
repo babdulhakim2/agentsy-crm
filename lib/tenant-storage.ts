@@ -18,6 +18,12 @@ export interface StoredTenant {
   ownerEmail?: string;
   timezone: string;
   primaryPhone?: string;
+  whatsapp?: {
+    mode: "basic" | "connected" | "managed";
+    displayName: string;
+    displayPhoneNumber?: string;
+    siteScope: "all_sites" | "first_site";
+  };
   bookingProvider?: string;
   posProvider?: string;
   voiceTone?: string;

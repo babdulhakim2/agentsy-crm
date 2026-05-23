@@ -19,6 +19,8 @@ export interface QuickAddPayload {
   email?: string;
   /** Optional birth month (1-12). Captured for birthday-treat campaigns. */
   birthMonth?: number;
+  /** Optional birthday day (1-31). */
+  birthDay?: number;
   /** Optional acquisition channel — where they came from. */
   customerSource?: CustomerSource;
 }
@@ -29,6 +31,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onCapture?: (payload: QuickAddPayload) => void | Promise<void>;
+  backendGroupId?: string;
   source?: QuickAddPayload["source"];
   defaultTags?: string[];
   title?: string;
@@ -53,12 +56,15 @@ function formatPhone(raw: string): string {
  * server-side using NEXT_PUBLIC_CONVEX_URL + DEFAULT_GROUP_ID. If the route
  * returns 503 (backend not configured), we fall back to the local onCapture.
  */
-async function postToBackend(payload: QuickAddPayload): Promise<{ ok: boolean; backend: boolean; error?: string }> {
+async function postToBackend(
+  payload: QuickAddPayload,
+  backendGroupId?: string
+): Promise<{ ok: boolean; backend: boolean; error?: string }> {
   try {
     const r = await fetch("/api/customers/quick-add", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, groupId: backendGroupId }),
     });
     if (r.status === 503) return { ok: true, backend: false };
     if (!r.ok) {
@@ -75,6 +81,7 @@ export function QuickAddCustomer({
   open,
   onClose,
   onCapture,
+  backendGroupId,
   source = "manual",
   defaultTags,
   title = "Add a customer",
@@ -83,12 +90,11 @@ export function QuickAddCustomer({
   const [phone, setPhone] = React.useState("");
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [showEmail, setShowEmail] = React.useState(false);
+  const [showMoreDetails, setShowMoreDetails] = React.useState(false);
   const [consent, setConsent] = React.useState(true);
   const [birthMonth, setBirthMonth] = React.useState<number | null>(null);
-  const [showBirthMonth, setShowBirthMonth] = React.useState(false);
+  const [birthDay, setBirthDay] = React.useState("");
   const [customerSource, setCustomerSource] = React.useState<CustomerSource | null>(null);
-  const [showSource, setShowSource] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [done, setDone] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -103,12 +109,11 @@ export function QuickAddCustomer({
       setPhone("");
       setName("");
       setEmail("");
-      setShowEmail(false);
+      setShowMoreDetails(false);
       setConsent(true);
       setBirthMonth(null);
-      setShowBirthMonth(false);
+      setBirthDay("");
       setCustomerSource(null);
-      setShowSource(false);
       setSubmitting(false);
     }
   }, [open]);
@@ -131,6 +136,14 @@ export function QuickAddCustomer({
       setError("That email looks off — double-check or skip it.");
       return;
     }
+    const parsedBirthDay = birthDay.trim() ? Number(birthDay) : undefined;
+    if (
+      parsedBirthDay !== undefined &&
+      (!Number.isInteger(parsedBirthDay) || parsedBirthDay < 1 || parsedBirthDay > 31)
+    ) {
+      setError("Birthday day should be between 1 and 31.");
+      return;
+    }
 
     setSubmitting(true);
     const payload: QuickAddPayload = {
@@ -141,10 +154,11 @@ export function QuickAddCustomer({
       tags: defaultTags,
       email: email.trim() || undefined,
       birthMonth: birthMonth ?? undefined,
+      birthDay: birthMonth ? parsedBirthDay : undefined,
       customerSource: customerSource ?? undefined,
     };
     try {
-      const result = await postToBackend(payload);
+      const result = await postToBackend(payload, backendGroupId);
       if (!result.ok && result.error) {
         throw new Error(result.error);
       }
@@ -296,19 +310,15 @@ export function QuickAddCustomer({
                 aria-label="WhatsApp opt-in"
               />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 600 }}>Send me WhatsApp updates</div>
-                <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
-                  Reminders, win-backs, the occasional menu drop. Easy to opt out.
-                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>WhatsApp consent</div>
+                <div style={{ fontSize: 11.5, color: "var(--ink-3)" }}>For offers and booking updates.</div>
               </div>
             </div>
 
-            {/* Optional email — collapsed by default. Encourages strong CRM coverage
-                without slowing down the host-stand flow. */}
-            {!showEmail ? (
+            <div style={{ marginBottom: 14 }}>
               <button
                 type="button"
-                onClick={() => setShowEmail(true)}
+                onClick={() => setShowMoreDetails((v) => !v)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -320,222 +330,131 @@ export function QuickAddCustomer({
                   borderRadius: 10,
                   color: "var(--ink-3)",
                   fontSize: 13,
-                  marginBottom: 10,
                   cursor: "pointer",
                   textAlign: "left",
                 }}
+                aria-expanded={showMoreDetails}
               >
-                <Icon.Mail s={14} c="var(--ink-3)" />
-                <span style={{ flex: 1 }}>
-                  Add email (optional) — for receipts and seasonal menus
+                <Icon.ChevronDown s={14} c="var(--ink-3)" />
+                <span style={{ flex: 1 }}>More details</span>
+                <span style={{ fontSize: 11.5, color: "var(--ink-4)" }}>
+                  Email, birthday, source
                 </span>
               </button>
-            ) : (
-              <div className="field" style={{ marginBottom: 10 }}>
-                <label
-                  htmlFor="qa-email"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    fontSize: 12,
-                    color: "var(--ink-3)",
-                    marginBottom: 6,
-                  }}
-                >
-                  Email (optional)
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowEmail(false);
-                      setEmail("");
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--ink-3)",
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Skip
-                  </button>
-                </label>
-                <input
-                  id="qa-email"
-                  className="big-input"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            )}
-
-            {/* Optional birth month — collapsed by default to keep capture fast */}
-            {!showBirthMonth ? (
-              <button
-                type="button"
-                onClick={() => setShowBirthMonth(true)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  padding: "10px 12px",
-                  background: "transparent",
-                  border: "1px dashed var(--rule-2)",
-                  borderRadius: 10,
-                  color: "var(--ink-3)",
-                  fontSize: 13,
-                  marginBottom: 14,
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <Icon.Plus s={14} c="var(--ink-3)" />
-                <span style={{ flex: 1 }}>Add birthday month (optional) — for a future treat</span>
-              </button>
-            ) : (
-              <div
-                style={{
-                  padding: "10px 12px 12px",
-                  background: "var(--card-2)",
-                  border: "1px solid var(--rule)",
-                  borderRadius: 12,
-                  marginBottom: 14,
-                }}
-              >
+              {showMoreDetails && (
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 8,
+                    marginTop: 8,
+                    padding: "12px",
+                    background: "var(--card-2)",
+                    border: "1px solid var(--rule)",
+                    borderRadius: 12,
                   }}
                 >
-                  <div style={{ fontSize: 12.5, fontWeight: 600 }}>Birthday month</div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBirthMonth(false);
-                      setBirthMonth(null);
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--ink-3)",
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Skip
-                  </button>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6 }}>
-                  {MONTHS.map((m, i) => {
-                    const active = birthMonth === i + 1;
-                    return (
-                      <button
-                        type="button"
-                        key={m}
-                        onClick={() => setBirthMonth(i + 1)}
-                        className={active ? "chip chip-terra" : "chip"}
-                        style={{
-                          cursor: "pointer",
-                          justifyContent: "center",
-                          padding: "8px 0",
-                        }}
-                      >
-                        {m}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 8, lineHeight: 1.4 }}>
-                  We&apos;ll text them a birthday treat the week of — a free starter, dessert or
-                  10% off, you pick the offer in Campaigns.
-                </div>
-              </div>
-            )}
-
-            {/* Optional source — where did they come from? */}
-            {!showSource ? (
-              <button
-                type="button"
-                onClick={() => setShowSource(true)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  padding: "10px 12px",
-                  background: "transparent",
-                  border: "1px dashed var(--rule-2)",
-                  borderRadius: 10,
-                  color: "var(--ink-3)",
-                  fontSize: 13,
-                  marginBottom: 14,
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <Icon.Tag s={14} c="var(--ink-3)" />
-                <span style={{ flex: 1 }}>How did they find you? (optional)</span>
-              </button>
-            ) : (
-              <div
-                style={{
-                  padding: "10px 12px 12px",
-                  background: "var(--card-2)",
-                  border: "1px solid var(--rule)",
-                  borderRadius: 12,
-                  marginBottom: 14,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 8,
-                  }}
-                >
-                  <div style={{ fontSize: 12.5, fontWeight: 600 }}>Source</div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowSource(false);
-                      setCustomerSource(null);
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      color: "var(--ink-3)",
-                      fontSize: 11,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Skip
-                  </button>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {SOURCES.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setCustomerSource(s.id)}
-                      className={customerSource === s.id ? "chip chip-terra" : "chip"}
-                      style={{ cursor: "pointer", padding: "7px 10px" }}
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label
+                      htmlFor="qa-email"
+                      style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}
                     >
-                      {s.label}
+                      Email
+                    </label>
+                    <input
+                      id="qa-email"
+                      className="input"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}>
+                      Birthday
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 6 }}>
+                      {MONTHS.map((m, i) => {
+                        const active = birthMonth === i + 1;
+                        return (
+                          <button
+                            type="button"
+                            key={m}
+                            onClick={() => {
+                              const next = birthMonth === i + 1 ? null : i + 1;
+                              setBirthMonth(next);
+                              if (next === null) setBirthDay("");
+                            }}
+                            className={active ? "chip chip-terra" : "chip"}
+                            style={{
+                              cursor: "pointer",
+                              justifyContent: "center",
+                              padding: "8px 0",
+                            }}
+                          >
+                            {m}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {birthMonth && (
+                      <div className="field" style={{ marginTop: 8 }}>
+                        <label
+                          htmlFor="qa-birth-day"
+                          style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}
+                        >
+                          Day of month
+                        </label>
+                        <input
+                          id="qa-birth-day"
+                          className="input"
+                          inputMode="numeric"
+                          placeholder="e.g. 14"
+                          value={birthDay}
+                          onChange={(e) => setBirthDay(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}>
+                      Source
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {SOURCES.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setCustomerSource((current) => (current === s.id ? null : s.id))}
+                          className={customerSource === s.id ? "chip chip-terra" : "chip"}
+                          style={{ cursor: "pointer", padding: "7px 10px" }}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {(email || birthMonth || customerSource) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail("");
+                        setBirthMonth(null);
+                        setBirthDay("");
+                        setCustomerSource(null);
+                      }}
+                      className="chip chip-ghost"
+                      style={{ marginTop: 12, border: "1px dashed var(--rule-2)", cursor: "pointer" }}
+                    >
+                      Clear optional details
                     </button>
-                  ))}
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {error && (
               <div

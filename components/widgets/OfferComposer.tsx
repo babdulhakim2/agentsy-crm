@@ -6,6 +6,7 @@
 import * as React from "react";
 import { Icon } from "../icons";
 import type { Customer } from "@/lib/types";
+import { nextActionForCustomer, stageForCustomer } from "@/lib/pipeline";
 
 interface Props {
   open: boolean;
@@ -23,20 +24,67 @@ const OFFERS: { id: string; label: string; voucher: string }[] = [
 
 function buildDraft(customer: Customer, offer: typeof OFFERS[number]): string {
   const first = customer.name.split(" ")[0];
-  return `${first} — quick one. We&apos;ve missed you and want to say so. Next time you&apos;re in, a ${offer.voucher} on the house — just show this message at the till. — Juliet`
-    .replace("&apos;", "'");
+  if (customer.visits === 0 || stageForCustomer(customer) === "lead") {
+    return `Hi ${first}, lovely to meet you. If you fancy trying us, show this message next time you come in and we'll sort ${offer.voucher}.`;
+  }
+  return `${first} — quick one. We've missed you and want to say so. Next time you're in, ${offer.voucher} on the house. Just show this message at the till.`;
+}
+
+function buildWhatsAppUrl(phone: string, body: string): string {
+  const digits = phone.replace(/[^\d]/g, "");
+  return `https://wa.me/${digits}?text=${encodeURIComponent(body)}`;
 }
 
 export function OfferComposer({ open, onClose, customer }: Props) {
   const [offerId, setOfferId] = React.useState(OFFERS[2].id);
   const [body, setBody] = React.useState("");
   const [done, setDone] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [drafting, setDrafting] = React.useState(false);
+  const [draftMode, setDraftMode] = React.useState<"llm" | "fallback">("fallback");
 
   React.useEffect(() => {
     if (open) {
       setDone(false);
+      setCopied(false);
+      setError(null);
+      setDraftMode("fallback");
       const offer = OFFERS.find((o) => o.id === offerId) ?? OFFERS[0];
-      setBody(buildDraft(customer, offer));
+      const fallback = buildDraft(customer, offer);
+      setBody(fallback);
+      setDrafting(true);
+
+      let active = true;
+      fetch("/api/ai/customer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: "message",
+          customer,
+          offer,
+          nextAction: nextActionForCustomer(customer),
+          restaurant: { name: "New Wok's Cooking" },
+        }),
+      })
+        .then((res) => (res.ok ? res.json() : Promise.reject(new Error("AI draft failed"))))
+        .then((data: { message?: string; mode?: "llm" | "fallback" }) => {
+          if (!active) return;
+          if (data.message) setBody(data.message);
+          setDraftMode(data.mode ?? "fallback");
+        })
+        .catch(() => {
+          if (!active) return;
+          setBody(fallback);
+          setDraftMode("fallback");
+        })
+        .finally(() => {
+          if (active) setDrafting(false);
+        });
+
+      return () => {
+        active = false;
+      };
     }
   }, [open, offerId, customer]);
 
@@ -46,9 +94,30 @@ export function OfferComposer({ open, onClose, customer }: Props) {
     setBody(buildDraft(customer, offer));
   };
 
-  const handleSend = () => {
-    setDone(true);
-    setTimeout(onClose, 1000);
+  const handleSend = async () => {
+    setError(null);
+    const trimmed = body.trim();
+    if (!trimmed) {
+      setError("Write a message before sending.");
+      return;
+    }
+
+    if (customer.phone) {
+      window.open(buildWhatsAppUrl(customer.phone, trimmed), "_blank", "noopener,noreferrer");
+      setCopied(false);
+      setDone(true);
+      setTimeout(onClose, 1100);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(trimmed);
+      setCopied(true);
+      setDone(true);
+      setTimeout(onClose, 1100);
+    } catch {
+      setError("No phone number saved. Copy the message manually or add the customer's phone.");
+    }
   };
 
   if (!open) return null;
@@ -78,6 +147,9 @@ export function OfferComposer({ open, onClose, customer }: Props) {
             >
               {customer.name}
             </h2>
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 3 }}>
+              {customer.phone ? `WhatsApp ${customer.phone}` : "No WhatsApp number saved"}
+            </div>
           </div>
           <button type="button" onClick={onClose} className="icon-btn" aria-label="Close">
             <Icon.X s={18} />
@@ -109,9 +181,13 @@ export function OfferComposer({ open, onClose, customer }: Props) {
             >
               <Icon.Send s={24} c="var(--sage)" />
             </div>
-            <div style={{ fontFamily: "var(--serif)", fontSize: 22 }}>Sent.</div>
+            <div style={{ fontFamily: "var(--serif)", fontSize: 22 }}>
+              {copied ? "Copied." : "Opened WhatsApp."}
+            </div>
             <div className="serif-i" style={{ color: "var(--ink-3)" }}>
-              {customer.name.split(" ")[0]} will get this on WhatsApp.
+              {copied
+                ? "Paste the message into WhatsApp once a number is added."
+                : `${customer.name.split(" ")[0]}'s message is ready to send.`}
             </div>
           </div>
         ) : (
@@ -135,7 +211,9 @@ export function OfferComposer({ open, onClose, customer }: Props) {
 
             <div className="eyebrow" style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
               <Icon.Sparkle s={11} c="var(--terracotta)" />
-              <span>Message · in your voice</span>
+              <span>
+                Message · {drafting ? "drafting with Gemini" : draftMode === "llm" ? "Gemini draft" : "local draft"}
+              </span>
             </div>
             <textarea
               className="textarea"
@@ -157,13 +235,19 @@ export function OfferComposer({ open, onClose, customer }: Props) {
               Tracked in their profile so you don&apos;t double-send.
             </div>
 
+            {error && (
+              <div className="chip chip-crimson" style={{ marginBottom: 10, whiteSpace: "normal" }}>
+                {error}
+              </div>
+            )}
+
             <button
               type="button"
               className="btn btn-terracotta"
               onClick={handleSend}
               style={{ width: "100%", padding: "16px", fontSize: 16 }}
             >
-              <Icon.Send s={16} c="#fff" /> Send WhatsApp
+              <Icon.Send s={16} c="#fff" /> {customer.phone ? "Open WhatsApp" : "Copy message"}
             </button>
           </>
         )}

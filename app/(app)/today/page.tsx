@@ -245,7 +245,7 @@ export default function TodayPage() {
 
           {/* Win-backs */}
           <SectionHeader
-            title="Regulars I'd nudge today"
+            title="Regulars to contact today"
             count={`${winbacksLeft.length} of ${winbacks.length}`}
             expanded={open.winbacks}
             onClick={() => setOpen((o) => ({ ...o, winbacks: !o.winbacks }))}

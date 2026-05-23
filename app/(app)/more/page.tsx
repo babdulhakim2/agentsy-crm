@@ -8,9 +8,9 @@ import { useSite } from "@/lib/site-context";
 const ITEMS = [
   { href: "/campaigns", label: "Campaigns", sub: "4 active · 2 scheduled", Icon: Icon.Send },
   { href: "/voice", label: "Brand voice", sub: "Trained · last refreshed 4 days ago", Icon: Icon.Sparkle },
-  { href: "/sites", label: "Sites & integrations", sub: "1 site · 1 needs attention", Icon: Icon.Building, badge: 1 },
+  { href: "/sites", label: "Sites", sub: "Manage branches and addresses", Icon: Icon.Building },
   { href: "/team", label: "Team", sub: "5 people · 1 invite pending", Icon: Icon.Users },
-  { href: "/settings", label: "Settings · billing", sub: "Per-site · Pro plan", Icon: Icon.Settings },
+  { href: "/settings", label: "Settings", sub: "Notifications and security", Icon: Icon.Settings },
   { href: "/host", label: "Open host stand (tablet)", sub: "For Jess on the door", Icon: Icon.Calendar },
   { href: "/onboarding", label: "Re-run onboarding", sub: "Add a 4th site", Icon: Icon.Plus },
 ];
@@ -18,8 +18,7 @@ const ITEMS = [
 export default function MorePage() {
   const { sites } = useSite();
   const items = ITEMS.map((item) => {
-    if (item.href === "/sites") return { ...item, sub: `${sites.length} sites · integrations` };
-    if (item.href === "/settings") return { ...item, sub: sites.length > 1 ? "Group plan · billing" : "Solo plan · billing" };
+    if (item.href === "/sites") return { ...item, sub: `${sites.length} site${sites.length === 1 ? "" : "s"}` };
     return item;
   });
 
@@ -78,16 +77,6 @@ export default function MorePage() {
                     }}
                   >
                     {it.label}
-                    {it.badge && (
-                      <span
-                        style={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: 999,
-                          background: "var(--crimson)",
-                        }}
-                      />
-                    )}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2 }}>{it.sub}</div>
                 </div>

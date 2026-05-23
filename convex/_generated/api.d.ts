@@ -31,6 +31,8 @@ import type * as sites from "../sites.js";
 import type * as trustpilot from "../trustpilot.js";
 import type * as users from "../users.js";
 import type * as whatsapp from "../whatsapp.js";
+import type * as whatsappAccounts from "../whatsappAccounts.js";
+import type * as whatsappEnquiries from "../whatsappEnquiries.js";
 
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -59,6 +61,8 @@ declare const fullApi: ApiFromModules<{
   trustpilot: typeof trustpilot;
   users: typeof users;
   whatsapp: typeof whatsapp;
+  whatsappAccounts: typeof whatsappAccounts;
+  whatsappEnquiries: typeof whatsappEnquiries;
 }>;
 export declare const api: FilterApi<
   typeof fullApi,

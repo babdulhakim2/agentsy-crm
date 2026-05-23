@@ -25,6 +25,7 @@ export const upsertWithCustomer = internalMutation({
   args: {
     groupId: v.id("groups"),
     customerId: v.id("customers"),
+    siteId: v.optional(v.id("sites")),
     channel: v.string(),
     aiHandled: v.boolean(),
   },
@@ -34,10 +35,16 @@ export const upsertWithCustomer = internalMutation({
       .withIndex("by_customer", (q) => q.eq("customerId", args.customerId))
       .filter((q) => q.eq(q.field("channel"), args.channel))
       .unique();
-    if (existing) return existing._id;
+    if (existing) {
+      if (args.siteId && existing.siteId !== args.siteId) {
+        await ctx.db.patch(existing._id, { siteId: args.siteId });
+      }
+      return existing._id;
+    }
     return await ctx.db.insert("conversations", {
       groupId: args.groupId,
       customerId: args.customerId,
+      siteId: args.siteId,
       channel: args.channel,
       lastMessageAt: Date.now(),
       aiHandled: args.aiHandled,

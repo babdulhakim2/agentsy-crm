@@ -7,7 +7,6 @@ import { Icon } from "../icons";
 export interface BranchPayload {
   name: string;
   address?: string;
-  gbpPlace?: string;
 }
 
 interface Props {
@@ -19,14 +18,12 @@ interface Props {
 export function AddBranchSheet({ open, onClose, onAdd }: Props) {
   const [name, setName] = React.useState("");
   const [address, setAddress] = React.useState("");
-  const [gbp, setGbp] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!open) {
       setName("");
       setAddress("");
-      setGbp("");
       setError(null);
     }
   }, [open]);
@@ -40,7 +37,6 @@ export function AddBranchSheet({ open, onClose, onAdd }: Props) {
     onAdd({
       name: name.trim(),
       address: address.trim() || undefined,
-      gbpPlace: gbp.trim() || undefined,
     });
     onClose();
   };
@@ -51,7 +47,7 @@ export function AddBranchSheet({ open, onClose, onAdd }: Props) {
       onClose={onClose}
       eyebrow="New branch"
       title="Add a branch"
-      subtitle="Pulls bookings, reviews and customers under the same business."
+      subtitle="Add the site name and address. You can add more details later."
     >
       <form onSubmit={submit}>
         <Field label="Branch name" htmlFor="ab-name">
@@ -73,20 +69,6 @@ export function AddBranchSheet({ open, onClose, onAdd }: Props) {
             onChange={(e) => setAddress(e.target.value)}
           />
         </Field>
-        <Field
-          label="Google Business Profile (optional)"
-          htmlFor="ab-gbp"
-          hint="Paste the GBP place URL or skip — you can connect it later from Sites."
-        >
-          <input
-            id="ab-gbp"
-            className="input"
-            placeholder="https://maps.app.goo.gl/…"
-            value={gbp}
-            onChange={(e) => setGbp(e.target.value)}
-          />
-        </Field>
-
         {error && (
           <div
             role="alert"

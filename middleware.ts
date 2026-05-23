@@ -15,6 +15,7 @@ const isProtectedRoute = createRouteMatcher([
   "/team(.*)",
   "/today(.*)",
   "/voice(.*)",
+  "/whatsapp(.*)",
   "/api/customers(.*)",
 ]);
 

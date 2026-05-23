@@ -660,6 +660,7 @@ a { color: inherit; text-decoration: none; }
   color: var(--ink);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 .screen-bleed.dark { background: #1a1612; color: #f5f0e6; }
 
@@ -820,6 +821,8 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  padding: 12px;
+  overflow-y: auto;
   animation: fadeIn 0.18s ease-out both;
 }
 @media (min-width: 1024px) {
@@ -831,12 +834,16 @@ a { color: inherit; text-decoration: none; }
   background: var(--card);
   border-radius: 22px 22px 0 0;
   padding: 22px 22px max(28px, env(safe-area-inset-bottom));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   animation: sheetUp 0.22s ease-out both;
   box-shadow: 0 -10px 40px rgba(26,22,18,0.25);
 }
 @media (min-width: 1024px) {
   .sheet {
     border-radius: 18px;
+    max-height: min(720px, calc(100dvh - 48px));
     box-shadow: 0 30px 60px rgba(26,22,18,0.3);
   }
 }

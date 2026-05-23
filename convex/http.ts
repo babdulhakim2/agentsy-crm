@@ -66,15 +66,15 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const payload = await request.json();
     const groupIdEnv = process.env.DEFAULT_GROUP_ID;
-    if (!groupIdEnv) {
-      console.error("DEFAULT_GROUP_ID not set; can't route WA inbound.");
-      return new Response("OK", { status: 200 });
-    }
     // payload.entry[].changes[].value.messages[]
     try {
       const entries = (payload.entry ?? []) as Array<{
         changes?: Array<{
           value?: {
+            metadata?: {
+              phone_number_id?: string;
+              display_phone_number?: string;
+            };
             messages?: Array<{
               from: string;
               id: string;
@@ -92,13 +92,22 @@ http.route({
           for (const msg of value.messages) {
             if (msg.type !== "text" || !msg.text?.body) continue;
             const senderName = value.contacts?.[0]?.profile?.name;
-            await ctx.runAction(internal.whatsapp.processInbound, {
-              groupId: groupIdEnv as any,
+            const inbound: {
+              groupId?: any;
+              phoneNumberId?: string;
+              fromPhone: string;
+              body: string;
+              waMessageId: string;
+              senderName?: string;
+            } = {
+              phoneNumberId: value.metadata?.phone_number_id,
               fromPhone: "+" + msg.from,
               body: msg.text.body,
               waMessageId: msg.id,
               senderName,
-            });
+            };
+            if (groupIdEnv) inbound.groupId = groupIdEnv;
+            await ctx.runAction(internal.whatsapp.processInbound, inbound);
           }
         }
       }

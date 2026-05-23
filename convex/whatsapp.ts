@@ -5,6 +5,7 @@
 
 import { action, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 const GRAPH_BASE = "https://graph.facebook.com/v20.0";
@@ -15,12 +16,24 @@ function env(name: string): string {
   return val;
 }
 
+function envOptional(name: string): string | undefined {
+  return process.env[name];
+}
+
 interface WhatsAppSendResult {
   messages?: { id: string }[];
 }
 
-async function sendRaw(payload: Record<string, unknown>): Promise<WhatsAppSendResult> {
-  const phoneId = env("WHATSAPP_PHONE_NUMBER_ID");
+async function sendRaw(
+  payload: Record<string, unknown>,
+  account?: Doc<"whatsappAccounts"> | null
+): Promise<WhatsAppSendResult> {
+  const phoneId = account?.phoneNumberId ?? envOptional("WHATSAPP_PHONE_NUMBER_ID");
+  if (!phoneId) {
+    throw new Error(
+      "No connected WhatsApp sender. Use Basic mode for QR/click links, or connect this business's WhatsApp Cloud API number."
+    );
+  }
   const token = env("WHATSAPP_TOKEN");
   const r = await fetch(`${GRAPH_BASE}/${phoneId}/messages`, {
     method: "POST",
@@ -31,10 +44,34 @@ async function sendRaw(payload: Record<string, unknown>): Promise<WhatsAppSendRe
   return await r.json();
 }
 
+async function resolveAccount(
+  ctx: any,
+  args: { groupId: Id<"groups">; siteId?: Id<"sites">; whatsappAccountId?: Id<"whatsappAccounts"> }
+) {
+  const account = args.whatsappAccountId
+    ? await ctx.runQuery(internal.whatsappAccounts.getInternal, { id: args.whatsappAccountId })
+    : await ctx.runQuery(internal.whatsappAccounts.bestForSendInternal, {
+        groupId: args.groupId,
+        siteId: args.siteId,
+      });
+
+  if (account && account.groupId !== args.groupId) {
+    throw new Error("WhatsApp account does not belong to this restaurant.");
+  }
+  if (account && account.mode !== "connected" && !envOptional("WHATSAPP_PHONE_NUMBER_ID")) {
+    throw new Error(
+      "This WhatsApp account is in Basic/Managed setup mode. It can track links and enquiries, but cannot send through Cloud API until connected."
+    );
+  }
+  return account;
+}
+
 /** Send a free-form text — only valid inside the 24h customer-initiated window. */
 export const sendText = action({
   args: {
     groupId: v.id("groups"),
+    siteId: v.optional(v.id("sites")),
+    whatsappAccountId: v.optional(v.id("whatsappAccounts")),
     customerId: v.id("customers"),
     body: v.string(),
   },
@@ -42,17 +79,19 @@ export const sendText = action({
     const customer = await ctx.runQuery(internal.customers.getInternal, { id: args.customerId });
     if (!customer) throw new Error("Customer not found");
     if (!customer.consent.whatsapp) throw new Error("Customer has not opted in to WhatsApp.");
+    const account = await resolveAccount(ctx, args);
 
     const result = await sendRaw({
       messaging_product: "whatsapp",
       to: customer.phone.replace(/^\+/, ""),
       type: "text",
       text: { body: args.body, preview_url: false },
-    });
+    }, account);
 
     const conversationId = await ctx.runMutation(internal.conversations.upsertWithCustomer, {
       groupId: args.groupId,
       customerId: args.customerId,
+      siteId: args.siteId ?? customer.primarySiteId,
       channel: "whatsapp",
       aiHandled: false,
     });
@@ -71,6 +110,8 @@ export const sendText = action({
 export const sendTemplate = action({
   args: {
     groupId: v.id("groups"),
+    siteId: v.optional(v.id("sites")),
+    whatsappAccountId: v.optional(v.id("whatsappAccounts")),
     customerId: v.id("customers"),
     template: v.string(),
     language: v.string(),
@@ -87,6 +128,7 @@ export const sendTemplate = action({
     const customer = await ctx.runQuery(internal.customers.getInternal, { id: args.customerId });
     if (!customer) throw new Error("Customer not found");
     if (!customer.consent.whatsapp) throw new Error("Customer has not opted in to WhatsApp.");
+    const account = await resolveAccount(ctx, args);
 
     await sendRaw({
       messaging_product: "whatsapp",
@@ -97,11 +139,12 @@ export const sendTemplate = action({
         language: { code: args.language },
         components: args.components ?? [],
       },
-    });
+    }, account);
 
     const conversationId = await ctx.runMutation(internal.conversations.upsertWithCustomer, {
       groupId: args.groupId,
       customerId: args.customerId,
+      siteId: args.siteId ?? customer.primarySiteId,
       channel: "whatsapp",
       aiHandled: false,
     });
@@ -118,21 +161,31 @@ export const sendTemplate = action({
 /** Process an inbound WhatsApp webhook payload. */
 export const processInbound = internalAction({
   args: {
-    groupId: v.id("groups"),
+    groupId: v.optional(v.id("groups")),
+    phoneNumberId: v.optional(v.string()),
     fromPhone: v.string(),
     body: v.string(),
     waMessageId: v.string(),
     senderName: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ handled: boolean }> => {
+    const account = args.phoneNumberId
+      ? await ctx.runQuery(internal.whatsappAccounts.findByPhoneNumberIdInternal, {
+          phoneNumberId: args.phoneNumberId,
+        })
+      : null;
+    const groupId = account?.groupId ?? args.groupId;
+    if (!groupId) {
+      throw new Error("Could not route inbound WhatsApp message to a restaurant.");
+    }
     const phone = args.fromPhone.startsWith("+") ? args.fromPhone : "+" + args.fromPhone;
     let customer = await ctx.runQuery(internal.customers.findByPhoneInternal, {
-      groupId: args.groupId,
+      groupId,
       phone,
     });
     if (!customer) {
       const newId = await ctx.runMutation(internal.customers.createMinimalInternal, {
-        groupId: args.groupId,
+        groupId,
         phone,
         name: args.senderName ?? "WhatsApp customer",
       });
@@ -141,8 +194,9 @@ export const processInbound = internalAction({
     }
 
     const conversationId = await ctx.runMutation(internal.conversations.upsertWithCustomer, {
-      groupId: args.groupId,
+      groupId,
       customerId: customer._id,
+      siteId: account?.siteId ?? customer.primarySiteId,
       channel: "whatsapp",
       aiHandled: true,
     });
@@ -156,7 +210,7 @@ export const processInbound = internalAction({
 
     try {
       const draft = await ctx.runAction(internal.ai.suggestWhatsAppReply, {
-        groupId: args.groupId,
+        groupId,
         customerName: customer.name,
         inbound: args.body,
         threadHistory: [],

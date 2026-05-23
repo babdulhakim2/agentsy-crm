@@ -50,6 +50,38 @@ export const findByPhone = query({
   },
 });
 
+export const visitsForCustomer = query({
+  args: { customerId: v.id("customers"), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const customer = await ctx.db.get(args.customerId);
+    if (!customer) return [];
+    const rows = await ctx.db
+      .query("visits")
+      .withIndex("by_group_customer", (q) =>
+        q.eq("groupId", customer.groupId).eq("customerId", args.customerId)
+      )
+      .order("desc")
+      .take(args.limit ?? 8);
+
+    return await Promise.all(
+      rows.map(async (visit) => {
+        const site = await ctx.db.get(visit.siteId);
+        return {
+          _id: visit._id,
+          at: visit.at,
+          siteName: site?.name ?? "Site",
+          party: visit.party,
+          spendCents: visit.spendCents,
+          source: visit.source,
+          notes: visit.notes,
+          rating: visit.rating,
+          feedback: visit.feedback,
+        };
+      })
+    );
+  },
+});
+
 /**
  * Quick-capture from host stand, walk-in, QR. Phone + name only.
  * Idempotent on (groupId, phone) — re-adds just refresh consent.
@@ -65,6 +97,9 @@ export const quickAdd = mutation({
     tags: v.optional(v.array(v.string())),
     dietary: v.optional(v.string()),
     email: v.optional(v.string()),
+    customerSource: v.optional(v.string()),
+    birthMonth: v.optional(v.number()),
+    birthDay: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const phone = normalizePhone(args.phone);
@@ -94,6 +129,9 @@ export const quickAdd = mutation({
         },
         tags: args.tags ?? existing.tags,
         dietary: args.dietary ?? existing.dietary,
+        source: args.customerSource ?? existing.source,
+        birthMonth: args.birthMonth ?? existing.birthMonth,
+        birthDay: args.birthDay ?? existing.birthDay,
       });
       return { id: existing._id, created: false };
     }
@@ -113,6 +151,9 @@ export const quickAdd = mutation({
       },
       visitCount: 0,
       spendCents: 0,
+      source: args.customerSource,
+      birthMonth: args.birthMonth,
+      birthDay: args.birthDay,
       createdAt: now,
     });
     return { id, created: true };
@@ -227,6 +268,9 @@ export const recordVisit = mutation({
     spendCents: v.number(),
     source: v.string(),
     notes: v.optional(v.string()),
+    rating: v.optional(v.number()),
+    feedback: v.optional(v.string()),
+    reviewOptIn: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const visitId = await ctx.db.insert("visits", { ...args, at: Date.now() });
@@ -241,3 +285,104 @@ export const recordVisit = mutation({
     return visitId;
   },
 });
+
+export const publicQrVisit = mutation({
+  args: {
+    groupId: v.id("groups"),
+    siteId: v.id("sites"),
+    name: v.string(),
+    phone: v.string(),
+    rating: v.optional(v.number()),
+    feedback: v.optional(v.string()),
+    consentWhatsapp: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const phone = normalizePhone(args.phone);
+    if (!phone || phone.length < 7) throw new Error("Phone looks too short.");
+    if (!args.name.trim()) throw new Error("Need a name.");
+
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("customers")
+      .withIndex("by_group_phone", (q) =>
+        q.eq("groupId", args.groupId).eq("phone", phone)
+      )
+      .unique();
+
+    const customerId =
+      existing?._id ??
+      (await ctx.db.insert("customers", {
+        groupId: args.groupId,
+        phone,
+        name: args.name.trim(),
+        tags: ["QR visit"],
+        consent: {
+          whatsapp: args.consentWhatsapp ?? true,
+          email: false,
+          capturedAt: now,
+          source: "qr",
+        },
+        visitCount: 0,
+        spendCents: 0,
+        source: "qr",
+        pipelineStage: "lead",
+        createdAt: now,
+      }));
+
+    const customer = existing ?? (await ctx.db.get(customerId));
+    if (!customer) throw new Error("Customer could not be created.");
+
+    const feedback = cleanOptional(args.feedback);
+    const ratingText = args.rating ? `Rating: ${args.rating}/5` : undefined;
+    const notes = [ratingText, feedback].filter(Boolean).join(" · ") || undefined;
+
+    const visitId = await ctx.db.insert("visits", {
+      groupId: args.groupId,
+      customerId,
+      siteId: args.siteId,
+      at: now,
+      party: 1,
+      spendCents: 0,
+      source: "qr",
+      notes,
+      rating: args.rating,
+      feedback,
+      reviewOptIn: true,
+    });
+
+    const nextVisitCount = customer.visitCount + 1;
+    const nextStage =
+      customer.pipelineStageManual
+        ? customer.pipelineStage
+        : nextVisitCount >= VIP_VISITS
+          ? "vip"
+          : "active";
+
+    await ctx.db.patch(customerId, {
+      name: args.name.trim() || customer.name,
+      consent: {
+        whatsapp: args.consentWhatsapp ?? customer.consent.whatsapp,
+        email: customer.consent.email,
+        capturedAt: now,
+        source: "qr",
+      },
+      lastVisitAt: now,
+      visitCount: nextVisitCount,
+      spendCents: customer.spendCents,
+      pipelineStage: nextStage,
+    });
+
+    return {
+      customerId,
+      visitId,
+      visitCount: nextVisitCount,
+      rewardUnlocked: nextVisitCount % 3 === 0,
+      visitsUntilReward: nextVisitCount % 3 === 0 ? 0 : 3 - (nextVisitCount % 3),
+    };
+  },
+});
+
+function cleanOptional(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, 800) : undefined;
+}

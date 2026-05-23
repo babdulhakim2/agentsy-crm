@@ -11,6 +11,14 @@ const siteInput = v.object({
   googlePlaceId: v.optional(v.string()),
 });
 
+const whatsappMode = v.union(v.literal("basic"), v.literal("connected"), v.literal("managed"));
+const whatsappSiteScope = v.union(v.literal("all_sites"), v.literal("first_site"));
+
+function normalizeEmail(email?: string): string | undefined {
+  const next = email?.trim().toLowerCase();
+  return next || undefined;
+}
+
 async function upsertCurrentUser(
   ctx: MutationCtx,
   args: { ownerName?: string; ownerEmail?: string; imageUrl?: string }
@@ -19,7 +27,7 @@ async function upsertCurrentUser(
   if (!identity) throw new Error("Not authenticated.");
 
   const now = Date.now();
-  const email = args.ownerEmail ?? identity.email;
+  const email = normalizeEmail(identity.email) ?? normalizeEmail(args.ownerEmail);
   if (!email) throw new Error("Clerk user needs an email address.");
 
   const existing = await ctx.db
@@ -35,6 +43,22 @@ async function upsertCurrentUser(
       lastSeenAt: now,
     });
     return existing._id;
+  }
+
+  const existingByEmail = await ctx.db
+    .query("users")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+
+  if (existingByEmail) {
+    await ctx.db.patch(existingByEmail._id, {
+      clerkUserId: identity.subject,
+      email,
+      name: args.ownerName ?? identity.name ?? existingByEmail.name,
+      imageUrl: args.imageUrl ?? identity.pictureUrl ?? existingByEmail.imageUrl,
+      lastSeenAt: now,
+    });
+    return existingByEmail._id;
   }
 
   return await ctx.db.insert("users", {
@@ -96,6 +120,62 @@ async function upsertConnection(
   return await ctx.db.insert("connections", patch);
 }
 
+function waLink(phone: string | undefined, displayName: string, siteName?: string) {
+  const digits = phone?.replace(/[^\d]/g, "");
+  if (!digits) return undefined;
+  const context = siteName ? `${displayName} ${siteName}` : displayName;
+  const text = `Hi ${context}, I'd like to ask about an order or catering.`;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
+async function upsertWhatsAppAccount(
+  ctx: MutationCtx,
+  args: {
+    groupId: Id<"groups">;
+    siteId?: Id<"sites">;
+    mode: "basic" | "connected" | "managed";
+    displayName: string;
+    displayPhoneNumber?: string;
+    source: string;
+  }
+) {
+  const now = Date.now();
+  const site = args.siteId ? await ctx.db.get(args.siteId) : null;
+  const existing = (
+    await ctx.db
+      .query("whatsappAccounts")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .collect()
+  ).find((account) => account.siteId === args.siteId);
+
+  const row = {
+    groupId: args.groupId,
+    siteId: args.siteId,
+    mode: args.mode,
+    status: args.displayPhoneNumber || args.mode === "managed" ? "pending" : "draft",
+    displayName: args.displayName,
+    displayPhoneNumber: args.displayPhoneNumber,
+    defaultFlow: JSON.stringify({
+      intent: "order_or_catering",
+      greeting: `Hi ${site?.name ? `${args.displayName} ${site.name}` : args.displayName}, I'd like to ask about an order or catering.`,
+      qualification: ["date", "party size", "delivery or collection", "budget", "dietary needs"],
+      handoff: "owner",
+      reviewRequestAfterOrder: true,
+    }),
+    clickToWhatsAppUrl: waLink(args.displayPhoneNumber, args.displayName, site?.name),
+    qrCodeLabel: site?.name ? `${site.name} WhatsApp QR` : "All sites WhatsApp QR",
+    onboardingSource: args.source,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, row);
+    return existing._id;
+  }
+  return await ctx.db.insert("whatsappAccounts", row);
+}
+
 export const complete = mutation({
   args: {
     groupName: v.string(),
@@ -105,6 +185,10 @@ export const complete = mutation({
     ownerEmail: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     sites: v.array(siteInput),
+    whatsappMode: v.optional(whatsappMode),
+    whatsappPhone: v.optional(v.string()),
+    whatsappDisplayName: v.optional(v.string()),
+    whatsappSiteScope: v.optional(whatsappSiteScope),
     bookingProvider: v.optional(v.string()),
     posProvider: v.optional(v.string()),
     voiceTone: v.optional(v.string()),
@@ -174,8 +258,9 @@ export const complete = mutation({
 
     const siteIds: Id<"sites">[] = [];
     for (const rawSite of args.sites) {
-      const name = clean(rawSite.name);
-      if (!name) continue;
+      // Fall back to a sensible default so we never end up with zero sites — the
+      // OAuth flow downstream needs at least one siteId to attach the connection to.
+      const name = clean(rawSite.name) ?? "Main site";
       const existing = existingSites.find((s) => s.name.toLowerCase() === name.toLowerCase());
       const sitePatch = {
         groupId,
@@ -194,6 +279,20 @@ export const complete = mutation({
       } else {
         siteIds.push(await ctx.db.insert("sites", sitePatch));
       }
+    }
+    // If the caller sent an empty `sites` array entirely, still create one so
+    // downstream code (Google connect, branch dropdown) has something to attach to.
+    if (siteIds.length === 0) {
+      siteIds.push(
+        await ctx.db.insert("sites", {
+          groupId,
+          name: "Main site",
+          city: "London",
+          coversToday: 0,
+          status: "active",
+          createdAt: now,
+        })
+      );
     }
 
     const membership = await ctx.db
@@ -262,7 +361,20 @@ export const complete = mutation({
       groupId,
       provider: "whatsapp_meta",
       status: "pending",
-      config: { phone: clean(args.primaryPhone), source: "onboarding" },
+      config: {
+        phone: clean(args.whatsappPhone) ?? clean(args.primaryPhone),
+        mode: args.whatsappMode ?? "basic",
+        source: "onboarding",
+      },
+    });
+
+    await upsertWhatsAppAccount(ctx, {
+      groupId,
+      siteId: args.whatsappSiteScope === "first_site" ? firstSiteId : undefined,
+      mode: args.whatsappMode ?? "basic",
+      displayName: clean(args.whatsappDisplayName) ?? groupName,
+      displayPhoneNumber: clean(args.whatsappPhone) ?? clean(args.primaryPhone),
+      source: "onboarding",
     });
 
     const existingVoice = await ctx.db

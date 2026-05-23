@@ -55,6 +55,53 @@ async function ensureConnection(
   return await ctx.db.insert("connections", row);
 }
 
+async function ensureWhatsAppAccount(
+  ctx: MutationCtx,
+  args: {
+    groupId: Id<"groups">;
+    siteId?: Id<"sites">;
+    mode: string;
+    status: string;
+    displayName: string;
+    displayPhoneNumber: string;
+    label: string;
+  }
+) {
+  const now = Date.now();
+  const existing = (
+    await ctx.db
+      .query("whatsappAccounts")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .collect()
+  ).find((account) => account.siteId === args.siteId);
+  const digits = args.displayPhoneNumber.replace(/[^\d]/g, "");
+  const row = {
+    groupId: args.groupId,
+    siteId: args.siteId,
+    mode: args.mode,
+    status: args.status,
+    displayName: args.displayName,
+    displayPhoneNumber: args.displayPhoneNumber,
+    defaultFlow: JSON.stringify({
+      intent: "order_or_catering",
+      qualification: ["date", "party size", "delivery or collection", "budget", "dietary needs"],
+      reviewRequestAfterOrder: true,
+    }),
+    clickToWhatsAppUrl: `https://wa.me/${digits}?text=${encodeURIComponent(
+      `Hi ${args.displayName}, I'd like to ask about an order or catering.`
+    )}`,
+    qrCodeLabel: args.label,
+    onboardingSource: "demo_seed",
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  if (existing) {
+    await ctx.db.patch(existing._id, row);
+    return existing._id;
+  }
+  return await ctx.db.insert("whatsappAccounts", row);
+}
+
 export const londonRestaurantDemo = mutation({
   args: {
     name: v.optional(v.string()),
@@ -344,6 +391,77 @@ export const londonRestaurantDemo = mutation({
       status: "pending",
       config: { phone: "+447700900123", mode: "demo" },
     });
+
+    const groupWhatsAppId = await ensureWhatsAppAccount(ctx, {
+      groupId,
+      mode: "basic",
+      status: "active",
+      displayName: name,
+      displayPhoneNumber: "+447700900123",
+      label: "All sites catering QR",
+    });
+    const camdenWhatsAppId = await ensureWhatsAppAccount(ctx, {
+      groupId,
+      siteId: siteIdsByName.Camden,
+      mode: "managed",
+      status: "pending",
+      displayName: `${name} Camden`,
+      displayPhoneNumber: "+447700900124",
+      label: "Camden counter QR",
+    });
+
+    const existingEnquiries = await ctx.db
+      .query("whatsappEnquiries")
+      .withIndex("by_group_receivedAt", (q) => q.eq("groupId", groupId))
+      .collect();
+    const enquiries = [
+      {
+        customerName: "Amira Patel",
+        siteId: siteIdsByName.Islington,
+        whatsappAccountId: groupWhatsAppId,
+        phone: "+447700900231",
+        source: "qr",
+        need: "catering",
+        stage: "quoted",
+        valueCents: 42000,
+        notes: "Office lunch trays for 28 people next Thursday.",
+        receivedAt: ago(1),
+      },
+      {
+        customerName: "Rashid Khan",
+        siteId: siteIdsByName.Camden,
+        whatsappAccountId: camdenWhatsAppId,
+        phone: "+447700900232",
+        source: "instagram",
+        need: "order",
+        stage: "confirmed",
+        valueCents: 8600,
+        notes: "Weekend family platter; asked for collection after 19:00.",
+        receivedAt: ago(2),
+      },
+      {
+        customerName: "Nina Roberts",
+        siteId: siteIdsByName.Shoreditch,
+        whatsappAccountId: groupWhatsAppId,
+        phone: "+447700900233",
+        source: "click_link",
+        need: "booking",
+        stage: "new",
+        valueCents: 0,
+        notes: "Birthday table for 6; needs halal sharing menu.",
+        receivedAt: ago(0.4),
+      },
+    ];
+    for (const enquiry of enquiries) {
+      const existing = existingEnquiries.find((row) => row.customerName === enquiry.customerName);
+      const row = {
+        groupId,
+        ...enquiry,
+        updatedAt: now,
+      };
+      if (existing) await ctx.db.patch(existing._id, row);
+      else await ctx.db.insert("whatsappEnquiries", row);
+    }
 
     return {
       groupId,

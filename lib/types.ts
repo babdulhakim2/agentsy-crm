@@ -58,6 +58,8 @@ export type PipelineStage = "lead" | "active" | "vip" | "at-risk" | "recovery";
 
 export type CustomerSource =
   | "walk-in"
+  | "qr"
+  | "outreach"
   | "booking"
   | "referral"
   | "instagram"
@@ -70,6 +72,8 @@ export interface Customer {
   id: string;
   initial: string;
   name: string;
+  phone?: string;
+  email?: string;
   site: string;
   visits: number;
   spend: number;
@@ -119,6 +123,33 @@ export interface Campaign {
   cost: string;
 }
 
+export type WhatsAppSetupMode = "basic" | "connected" | "managed";
+export type WhatsAppAccountStatus = "draft" | "pending" | "active" | "blocked";
+
+export interface WhatsAppAccount {
+  id: string;
+  site: string;
+  mode: WhatsAppSetupMode;
+  status: WhatsAppAccountStatus;
+  displayName: string;
+  displayPhoneNumber?: string;
+  clickToWhatsAppUrl?: string;
+  qrCodeLabel: string;
+  flow: string[];
+}
+
+export interface WhatsAppEnquiry {
+  id: string;
+  site: string;
+  customer: string;
+  source: string;
+  need: "catering" | "order" | "booking" | "review" | "other";
+  stage: "new" | "quoted" | "confirmed" | "lost" | "review_requested";
+  value: number;
+  age: string;
+  note: string;
+}
+
 export interface Integration {
   provider: string;
   type: string;
@@ -153,6 +184,8 @@ export interface ForgeData {
   tonight: TonightBooking[];
   threads: Thread[];
   campaigns: Campaign[];
+  whatsappAccounts: WhatsAppAccount[];
+  whatsappEnquiries: WhatsAppEnquiry[];
   integrations: Integration[];
   team: TeamMember[];
   birthdays: BirthdayTreat[];

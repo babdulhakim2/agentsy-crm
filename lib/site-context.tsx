@@ -16,6 +16,7 @@ import {
   readTenantFromStorage,
   TENANT_CHANGED_EVENT,
   tenantSitesToAppSites,
+  writeTenantToStorage,
   type StoredTenant,
 } from "./tenant-storage";
 
@@ -32,6 +33,7 @@ interface Ctx {
   ownerName: string;
   filterByActiveSite: <T extends { site: string }>(items: T[]) => T[];
   addSite: (s: { name: string; address?: string }) => Site;
+  updateSite: (id: string, patch: { name: string; address?: string }) => void;
 }
 
 const SiteCtx = React.createContext<Ctx | null>(null);
@@ -101,6 +103,48 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     [setActiveSiteId]
   );
 
+  const updateSite = React.useCallback((id: string, patch: { name: string; address?: string }) => {
+    setExtraSites((prev) => {
+      const next = prev.map((site) =>
+        site.id === id ? { ...site, name: patch.name, address: patch.address ?? "" } : site
+      );
+      try {
+        window.localStorage.setItem(SITES_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* no-op */
+      }
+      return next;
+    });
+
+    const stored = readTenantFromStorage();
+    if (stored) {
+      const onboardedIndex = id.startsWith("onboarded-") ? Number(id.replace("onboarded-", "")) : -1;
+      const nextTenant: StoredTenant = {
+        ...stored,
+        sites: stored.sites.map((site, index) =>
+          site.id === id || site.name === id || index === onboardedIndex
+            ? { ...site, name: patch.name, address: patch.address }
+            : site
+        ),
+      };
+      setTenant(nextTenant);
+      writeTenantToStorage(nextTenant);
+    }
+
+    setBackendTenant((prev) =>
+      prev
+        ? {
+            ...prev,
+            sites: prev.sites.map((site) =>
+              site.id === id || site.name === id
+                ? { ...site, name: patch.name, address: patch.address }
+                : site
+            ),
+          }
+        : prev
+    );
+  }, []);
+
   const effectiveTenant = backendTenant ?? tenant;
   const baseSites = React.useMemo(
     () => (effectiveTenant ? tenantSitesToAppSites(effectiveTenant) : FORGE.sites),
@@ -138,6 +182,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
         ownerName,
         filterByActiveSite,
         addSite,
+        updateSite,
       }}
     >
       {mounted && isConvexReady() && <BackendTenantBridge onTenant={setBackendTenant} />}

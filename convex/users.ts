@@ -8,6 +8,11 @@ async function requireIdentity(ctx: QueryCtx) {
   return identity;
 }
 
+function normalizeEmail(email?: string): string | undefined {
+  const next = email?.trim().toLowerCase();
+  return next || undefined;
+}
+
 export const upsertCurrent = mutation({
   args: {
     email: v.optional(v.string()),
@@ -17,7 +22,7 @@ export const upsertCurrent = mutation({
   handler: async (ctx, args) => {
     const identity = await requireIdentity(ctx);
     const now = Date.now();
-    const email = args.email ?? identity.email;
+    const email = normalizeEmail(identity.email) ?? normalizeEmail(args.email);
     if (!email) throw new Error("Clerk user needs an email address.");
 
     const existing = await ctx.db
@@ -33,6 +38,22 @@ export const upsertCurrent = mutation({
         lastSeenAt: now,
       });
       return existing._id;
+    }
+
+    const existingByEmail = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+
+    if (existingByEmail) {
+      await ctx.db.patch(existingByEmail._id, {
+        clerkUserId: identity.subject,
+        email,
+        name: args.name ?? identity.name ?? existingByEmail.name,
+        imageUrl: args.imageUrl ?? identity.pictureUrl ?? existingByEmail.imageUrl,
+        lastSeenAt: now,
+      });
+      return existingByEmail._id;
     }
 
     return await ctx.db.insert("users", {
@@ -52,10 +73,19 @@ export const current = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return null;
 
-    const user = await ctx.db
+    const userByClerkId = await ctx.db
       .query("users")
       .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
       .unique();
+    const authEmail = normalizeEmail(identity.email);
+    const user =
+      userByClerkId ??
+      (authEmail
+        ? await ctx.db
+            .query("users")
+            .withIndex("by_email", (q) => q.eq("email", authEmail))
+            .unique()
+        : null);
     if (!user) return null;
 
     const memberships = await ctx.db

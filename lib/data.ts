@@ -146,14 +146,14 @@ export const FORGE: ForgeData = {
   ],
 
   customers: [
-    { id: "g1", initial: "S", name: "Sarah Ahmed", site: "Islington", visits: 7, spend: 312, tag: "Lamb regular", recency: "sage", last: "2 days ago", birthMonth: 7, pipelineStage: "active", source: "instagram" },
-    { id: "g2", initial: "D", name: "Daniel Okafor", site: "Camden", visits: 3, spend: 142, tag: "New regular?", recency: "amber", last: "5 days ago", pipelineStage: "active", source: "google" },
-    { id: "g3", initial: "O", name: "Olu Adebayo", site: "Islington", visits: 14, spend: 740, tag: "VIP", recency: "crimson", last: "71 days ago", birthMonth: 11, pipelineStage: "recovery", source: "referral" },
-    { id: "g4", initial: "P", name: "Priya Shah", site: "Camden", visits: 22, spend: 1180, tag: "VIP · birthday Apr", recency: "amber", last: "64 days ago", birthMonth: 5, birthDay: 3, pipelineStage: "vip", source: "walk-in" },
-    { id: "g5", initial: "M", name: "Marcus Lee", site: "Camden", visits: 9, spend: 408, tag: "Spice fan", recency: "amber", last: "60 days ago", pipelineStage: "at-risk", source: "instagram" },
-    { id: "g6", initial: "H", name: "Hannah Khan", site: "Shoreditch", visits: 11, spend: 540, tag: "VIP", recency: "crimson", last: "67 days ago", birthMonth: 5, birthDay: 6, pipelineStage: "recovery", source: "referral" },
-    { id: "g7", initial: "T", name: "Tom & Rachel Hill", site: "Shoreditch", visits: 16, spend: 820, tag: "Family regulars", recency: "crimson", last: "83 days ago", pipelineStage: "at-risk", source: "walk-in" },
-    { id: "g8", initial: "J", name: "Jamie Park", site: "Shoreditch", visits: 2, spend: 78, tag: "New", recency: "sage", last: "today", birthMonth: 5, birthDay: 2, pipelineStage: "lead", source: "booking" },
+    { id: "g1", initial: "S", name: "Sarah Ahmed", phone: "+447700900101", site: "Islington", visits: 7, spend: 312, tag: "Lamb regular", recency: "sage", last: "2 days ago", birthMonth: 7, pipelineStage: "active", source: "instagram" },
+    { id: "g2", initial: "D", name: "Daniel Okafor", phone: "+447700900102", site: "Camden", visits: 3, spend: 142, tag: "New regular?", recency: "amber", last: "5 days ago", pipelineStage: "active", source: "google" },
+    { id: "g3", initial: "O", name: "Olu Adebayo", phone: "+447700900103", site: "Islington", visits: 14, spend: 740, tag: "VIP", recency: "crimson", last: "71 days ago", birthMonth: 11, pipelineStage: "recovery", source: "referral" },
+    { id: "g4", initial: "P", name: "Priya Shah", phone: "+447700900104", site: "Camden", visits: 22, spend: 1180, tag: "VIP · birthday Apr", recency: "amber", last: "64 days ago", birthMonth: 5, birthDay: 3, pipelineStage: "vip", source: "walk-in" },
+    { id: "g5", initial: "M", name: "Marcus Lee", phone: "+447700900105", site: "Camden", visits: 9, spend: 408, tag: "Spice fan", recency: "amber", last: "60 days ago", pipelineStage: "at-risk", source: "instagram" },
+    { id: "g6", initial: "H", name: "Hannah Khan", phone: "+447700900106", site: "Shoreditch", visits: 11, spend: 540, tag: "VIP", recency: "crimson", last: "67 days ago", birthMonth: 5, birthDay: 6, pipelineStage: "recovery", source: "referral" },
+    { id: "g7", initial: "T", name: "Tom & Rachel Hill", phone: "+447700900107", site: "Shoreditch", visits: 16, spend: 820, tag: "Family regulars", recency: "crimson", last: "83 days ago", pipelineStage: "at-risk", source: "walk-in" },
+    { id: "g8", initial: "J", name: "Jamie Park", phone: "+447700900108", site: "Shoreditch", visits: 2, spend: 78, tag: "New", recency: "sage", last: "today", birthMonth: 5, birthDay: 2, pipelineStage: "lead", source: "booking" },
   ],
 
   tonight: [
@@ -180,6 +180,69 @@ export const FORGE: ForgeData = {
     { id: "cm2", site: "Islington", name: "May birthdays · Islington", status: "scheduled", recipients: 38, when: "2 May 11:00", channel: "WhatsApp", cost: "~£1.60" },
     { id: "cm3", site: "All sites", name: "Eid family menu", status: "sent", recipients: 312, channel: "Email", cost: "£0" },
     { id: "cm4", site: "Camden", name: "Late-summer regulars · Camden", status: "paused", recipients: 64, channel: "WhatsApp", cost: "~£2.60" },
+  ],
+
+  whatsappAccounts: [
+    {
+      id: "wa1",
+      site: "All sites",
+      mode: "basic",
+      status: "active",
+      displayName: "New Wok's Cooking",
+      displayPhoneNumber: "+44 7700 900123",
+      clickToWhatsAppUrl:
+        "https://wa.me/447700900123?text=Hi%20New%20Wok's%20Cooking%2C%20I'd%20like%20to%20ask%20about%20an%20order%20or%20catering.",
+      qrCodeLabel: "All sites catering QR",
+      flow: ["Ask intent", "Capture date + party size", "Quote or confirm", "Request review after order"],
+    },
+    {
+      id: "wa2",
+      site: "Camden",
+      mode: "managed",
+      status: "pending",
+      displayName: "New Wok's Cooking Camden",
+      displayPhoneNumber: "+44 7700 900124",
+      clickToWhatsAppUrl:
+        "https://wa.me/447700900124?text=Hi%20New%20Wok's%20Cooking%20Camden%2C%20I'd%20like%20to%20order.",
+      qrCodeLabel: "Camden counter QR",
+      flow: ["Counter QR", "Order details", "Collection time", "Review request"],
+    },
+  ],
+
+  whatsappEnquiries: [
+    {
+      id: "we1",
+      site: "Islington",
+      customer: "Amira Patel",
+      source: "QR code",
+      need: "catering",
+      stage: "quoted",
+      value: 420,
+      age: "today",
+      note: "Office lunch trays for 28 people next Thursday.",
+    },
+    {
+      id: "we2",
+      site: "Camden",
+      customer: "Rashid Khan",
+      source: "Instagram link",
+      need: "order",
+      stage: "confirmed",
+      value: 86,
+      age: "yesterday",
+      note: "Weekend family platter; collection after 19:00.",
+    },
+    {
+      id: "we3",
+      site: "Shoreditch",
+      customer: "Nina Roberts",
+      source: "Google profile",
+      need: "booking",
+      stage: "new",
+      value: 0,
+      age: "2h",
+      note: "Birthday table for 6; wants halal sharing menu.",
+    },
   ],
 
   integrations: [

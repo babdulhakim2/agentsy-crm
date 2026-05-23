@@ -7,6 +7,8 @@
 //   • visits/reviews — site-scoped (the things that physically happen at a branch)
 //   • conversations/campaigns/connections (per-site) — optionally site-scoped
 //     when the operator wants to target one branch
+//   • whatsappAccounts — group-scoped by default, optionally branch-scoped when
+//     a site has its own sender number/display name
 //
 // Run `npx convex dev` once to generate _generated/ types; subsequent edits hot-reload.
 
@@ -103,8 +105,12 @@ export default defineSchema({
     pipelineStage: v.optional(v.string()),
     /** True when owner manually set the stage — cron leaves it alone. */
     pipelineStageManual: v.optional(v.boolean()),
-    /** 'walk-in' | 'booking' | 'referral' | 'instagram' | 'google' | 'whatsapp' | 'event' | 'other' */
+    /** 'walk-in' | 'qr' | 'outreach' | 'booking' | 'referral' | 'instagram' | 'google' | 'whatsapp' | 'event' | 'other' */
     source: v.optional(v.string()),
+    /** Birth month (1-12), used for birthday campaigns. */
+    birthMonth: v.optional(v.number()),
+    /** Optional birthday day of month (1-31). */
+    birthDay: v.optional(v.number()),
     /** Site the customer most often visits — purely a hint for filtering UI. */
     primarySiteId: v.optional(v.id("sites")),
     createdAt: v.number(),
@@ -125,6 +131,9 @@ export default defineSchema({
     spendCents: v.number(),
     source: v.string(), // 'booking' | 'walkin' | 'host_stand'
     notes: v.optional(v.string()),
+    rating: v.optional(v.number()),
+    feedback: v.optional(v.string()),
+    reviewOptIn: v.optional(v.boolean()),
   })
     .index("by_group_customer", ["groupId", "customerId"])
     .index("by_site_at", ["siteId", "at"]),
@@ -188,6 +197,53 @@ export default defineSchema({
   })
     .index("by_group_provider", ["groupId", "provider"])
     .index("by_site_provider", ["siteId", "provider"]),
+
+  whatsappAccounts: defineTable({
+    groupId: v.id("groups"),
+    /** Optional — set when a branch owns a dedicated WhatsApp sender. */
+    siteId: v.optional(v.id("sites")),
+    /** 'basic' = click links/QRs, 'connected' = Meta Cloud API, 'managed' = agency-assisted setup. */
+    mode: v.string(),
+    /** 'draft' | 'pending' | 'active' | 'blocked' */
+    status: v.string(),
+    displayName: v.string(),
+    displayPhoneNumber: v.optional(v.string()),
+    /** Meta WhatsApp Business Account ID. Only present once connected through Embedded Signup/API. */
+    wabaId: v.optional(v.string()),
+    /** Meta Phone Number ID used for Cloud API send + webhook routing. */
+    phoneNumberId: v.optional(v.string()),
+    qualityRating: v.optional(v.string()),
+    accessTokenSecretRef: v.optional(v.string()),
+    defaultFlow: v.string(), // JSON: enquiry/order/review flow config
+    clickToWhatsAppUrl: v.optional(v.string()),
+    qrCodeLabel: v.optional(v.string()),
+    onboardingSource: v.optional(v.string()), // 'onboarding' | 'embedded_signup' | 'manual'
+    connectedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_group", ["groupId"])
+    .index("by_site", ["siteId"])
+    .index("by_phone_number_id", ["phoneNumberId"]),
+
+  whatsappEnquiries: defineTable({
+    groupId: v.id("groups"),
+    siteId: v.optional(v.id("sites")),
+    whatsappAccountId: v.optional(v.id("whatsappAccounts")),
+    customerId: v.optional(v.id("customers")),
+    customerName: v.string(),
+    phone: v.optional(v.string()),
+    source: v.string(), // 'qr' | 'click_link' | 'instagram' | 'manual' | 'google'
+    need: v.string(), // 'catering' | 'order' | 'booking' | 'review' | 'other'
+    stage: v.string(), // 'new' | 'quoted' | 'confirmed' | 'lost' | 'review_requested'
+    valueCents: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    receivedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_group_receivedAt", ["groupId", "receivedAt"])
+    .index("by_site_receivedAt", ["siteId", "receivedAt"])
+    .index("by_group_stage", ["groupId", "stage"]),
 
   campaigns: defineTable({
     groupId: v.id("groups"),

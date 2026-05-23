@@ -7,6 +7,7 @@ import { auth } from "@clerk/nextjs/server";
 import { ConvexHttpClient } from "convex/browser";
 
 interface Body {
+  groupId?: string;
   phone: string;
   name: string;
   consentWhatsapp: boolean;
@@ -14,18 +15,14 @@ interface Body {
   tags?: string[];
   email?: string;
   birthMonth?: number;
+  birthDay?: number;
+  customerSource?: string;
 }
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
-  const groupId = process.env.DEFAULT_GROUP_ID;
-  if (!url || !groupId) {
-    return NextResponse.json({ pending: true }, { status: 503 });
   }
 
   let body: Body;
@@ -38,12 +35,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "phone and name required" }, { status: 400 });
   }
 
+  const url = process.env.NEXT_PUBLIC_CONVEX_URL;
+  const groupId = body.groupId || process.env.DEFAULT_GROUP_ID;
+  if (!url || !groupId) {
+    return NextResponse.json({ pending: true }, { status: 503 });
+  }
+
   try {
     const client = new ConvexHttpClient(url);
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore - convex/_generated created by convex CLI
     const { api } = await import("../../../../convex/_generated/api");
-    const result = await client.mutation(api.customers.quickAdd, {
+    const baseArgs = {
       groupId,
       phone: body.phone,
       name: body.name,
@@ -51,8 +54,23 @@ export async function POST(req: NextRequest) {
       source: body.source,
       tags: body.tags ?? [],
       email: body.email,
-    } as Parameters<typeof client.mutation>[1]);
-    return NextResponse.json({ ok: true, result });
+    };
+    try {
+      const result = await client.mutation(api.customers.quickAdd, {
+        ...baseArgs,
+        customerSource: body.customerSource,
+        birthMonth: body.birthMonth,
+        birthDay: body.birthDay,
+      } as Parameters<typeof client.mutation>[1]);
+      return NextResponse.json({ ok: true, result });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      if (!isLegacyCustomerValidatorError(msg)) throw err;
+      const result = await client.mutation(api.customers.quickAdd, {
+        ...baseArgs,
+      } as Parameters<typeof client.mutation>[1]);
+      return NextResponse.json({ ok: true, result, legacyCustomerSchema: true });
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     if (msg.includes("Cannot find module")) {
@@ -60,4 +78,11 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+function isLegacyCustomerValidatorError(message: string): boolean {
+  return (
+    message.includes("ArgumentValidationError") &&
+    (message.includes("customerSource") || message.includes("birthMonth") || message.includes("birthDay"))
+  );
 }
