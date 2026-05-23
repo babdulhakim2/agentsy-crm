@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { Icon } from "../icons";
 import { OfferComposer } from "./OfferComposer";
 import { SiteTag } from "./SiteTag";
@@ -21,6 +20,11 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 const MONTH_CHIPS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function whatsappUrl(phone?: string): string | undefined {
+  const digits = phone?.replace(/\D/g, "");
+  return digits ? `https://wa.me/${digits}` : undefined;
+}
 
 interface Props {
   customer: Customer;
@@ -318,9 +322,11 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
         >
           <Icon.Sparkle s={14} c="#fff" /> Send a personal offer
         </button>
-        <Link href="/inbox" className="btn btn-ghost" style={{ flex: "0 0 auto" }}>
-          <Icon.Send s={14} /> WhatsApp
-        </Link>
+        {whatsappUrl(g.phone) && (
+          <a href={whatsappUrl(g.phone)} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ flex: "0 0 auto" }}>
+            <Icon.Send s={14} /> WhatsApp
+          </a>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: 14, padding: "14px 16px", background: "var(--card-2)" }}>

@@ -35,9 +35,12 @@ function Guard({ children }: { children: React.ReactNode }) {
   const current = useQuery(api.users.current);
   const [syncAttempted, setSyncAttempted] = React.useState(false);
   const [hasLocalTenant, setHasLocalTenant] = React.useState(false);
+  const [localTenantChecked, setLocalTenantChecked] = React.useState(false);
+  const [tenantQueryTimedOut, setTenantQueryTimedOut] = React.useState(false);
 
   React.useEffect(() => {
     setHasLocalTenant(Boolean(readTenantFromStorage()));
+    setLocalTenantChecked(true);
   }, []);
 
   // Sync the Clerk user into Convex once on load.
@@ -53,10 +56,28 @@ function Guard({ children }: { children: React.ReactNode }) {
       .finally(() => setSyncAttempted(true));
   }, [isLoaded, isSignedIn, user, upsert]);
 
-  const waitingForUserSync = isSignedIn && current === null && !syncAttempted;
-  const loading = !isLoaded || current === undefined || waitingForUserSync;
-  const hasTenant = !loading && (current?.tenants.some((t) => t.group) ?? false);
+  const localTenantCanSatisfyGuard = isSignedIn && localTenantChecked && hasLocalTenant;
+  const convexTenantUnavailable = isSignedIn && tenantQueryTimedOut && current === undefined;
+  const waitingForUserSync = isSignedIn && !localTenantCanSatisfyGuard && current === null && !syncAttempted;
+  const loading =
+    !isLoaded ||
+    !localTenantChecked ||
+    (!localTenantCanSatisfyGuard && !convexTenantUnavailable && current === undefined) ||
+    waitingForUserSync;
+  const hasTenant =
+    localTenantCanSatisfyGuard ||
+    convexTenantUnavailable ||
+    (!loading && (current?.tenants.some((t) => t.group) ?? false));
   const needsOnboarding = !loading && !hasTenant && !hasLocalTenant && pathname !== "/onboarding";
+
+  React.useEffect(() => {
+    if (!isLoaded || !isSignedIn || current !== undefined) {
+      setTenantQueryTimedOut(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setTenantQueryTimedOut(true), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [current, isLoaded, isSignedIn]);
 
   React.useEffect(() => {
     if (needsOnboarding) router.replace("/onboarding");

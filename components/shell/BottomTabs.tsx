@@ -6,23 +6,15 @@ import { usePathname } from "next/navigation";
 import { Icon } from "../icons";
 
 const TABS = [
-  { id: "today", href: "/today", label: "Today", Icon: Icon.Home },
   { id: "customers", href: "/customers", label: "Customers", Icon: Icon.Users },
-  { id: "reviews", href: "/reviews", label: "Reviews", Icon: Icon.Star },
-  { id: "inbox", href: "/inbox", label: "Inbox", Icon: Icon.Inbox },
-  { id: "more", href: "/more", label: "More", Icon: Icon.More },
+  { id: "sites", href: "/sites", label: "Sites", Icon: Icon.Building },
+  { id: "settings", href: "/settings", label: "Settings", Icon: Icon.Settings },
 ];
 
 export function BottomTabs() {
   const pathname = usePathname() ?? "/";
 
-  // Match the More tab against the umbrella pages
-  const moreRoutes = ["/more", "/campaigns", "/voice", "/sites", "/team", "/settings"];
-
   const isActive = (id: string, href: string) => {
-    if (id === "more") {
-      return moreRoutes.some((r) => pathname === r || pathname.startsWith(r + "/"));
-    }
     return pathname === href || pathname.startsWith(href + "/");
   };
 

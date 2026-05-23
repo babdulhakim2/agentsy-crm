@@ -760,7 +760,7 @@ function FinishButtons(props: FinishProps) {
 function LocalFinishButton({ data, router, user }: FinishProps) {
   const handle = () => {
     writeTenantToStorage(buildStoredTenant(data, user));
-    router.push("/today");
+    router.push("/customers");
   };
   return (
     <button type="button" className="btn btn-terracotta" onClick={handle} style={{ flex: 1 }}>
@@ -817,7 +817,7 @@ function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
 
   const finishLocally = () => {
     writeTenantToStorage(buildStoredTenant(data, user));
-    router.push("/today");
+    router.push("/customers");
   };
 
   const handleSkip = async () => {
@@ -845,7 +845,7 @@ function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
       const oauth = await startOAuth({
         groupId: result.groupId,
         siteId: result.siteIds[0],
-        redirectAfter: `${window.location.origin}/today`,
+        redirectAfter: `${window.location.origin}/customers`,
       });
       if (!oauth?.url) {
         throw new Error("Google didn't return a consent URL. Check the Convex action logs.");

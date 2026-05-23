@@ -11,17 +11,8 @@ import { SiteSwitcher } from "./SiteSwitcher";
 import { FORGE } from "@/lib/data";
 
 const PRIMARY = [
-  { id: "today", href: "/today", label: "Today", Icon: Icon.Home },
   { id: "customers", href: "/customers", label: "Customers", Icon: Icon.Users },
-  { id: "reviews", href: "/reviews", label: "Reviews", Icon: Icon.Star },
-  { id: "inbox", href: "/inbox", label: "Inbox", Icon: Icon.Inbox },
-];
-
-const MORE = [
-  { id: "campaigns", href: "/campaigns", label: "Campaigns", Icon: Icon.Send },
-  { id: "voice", href: "/voice", label: "Brand voice", Icon: Icon.Sparkle },
-  { id: "sites", href: "/sites", label: "Sites", Icon: Icon.Building, badge: 1 },
-  { id: "team", href: "/team", label: "Team", Icon: Icon.Users },
+  { id: "sites", href: "/sites", label: "Sites", Icon: Icon.Building },
   { id: "settings", href: "/settings", label: "Settings", Icon: Icon.Settings },
 ];
 
@@ -38,7 +29,7 @@ export function Sidebar({ onAddBranch }: SidebarProps = {}) {
 
   return (
     <aside className="shell-sidebar">
-      <Link href="/today" style={{ display: "block", padding: "0 4px 12px", textDecoration: "none" }}>
+      <Link href="/customers" style={{ display: "block", padding: "0 4px 12px", textDecoration: "none" }}>
         <RestaurantLockup size={32} />
       </Link>
       <div style={{ padding: "0 4px 14px" }}>
@@ -56,38 +47,6 @@ export function Sidebar({ onAddBranch }: SidebarProps = {}) {
             >
               <I s={17} w={1.7} />
               <span style={{ flex: 1 }}>{i.label}</span>
-            </Link>
-          );
-        })}
-        <div style={{ height: 1, background: "var(--rule)", margin: "12px 8px" }} />
-        <div
-          style={{
-            fontSize: 10.5,
-            color: "var(--ink-4)",
-            padding: "4px 10px 6px",
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-            fontFamily: "var(--mono)",
-          }}
-        >
-          More
-        </div>
-        {MORE.map((i) => {
-          const I = i.Icon;
-          return (
-            <Link
-              key={i.id}
-              href={i.href}
-              className={`nav-item${isActive(i.href) ? " active" : ""}`}
-            >
-              <I s={17} w={1.7} />
-              <span style={{ flex: 1 }}>{i.label}</span>
-              {i.badge ? (
-                <span
-                  style={{ width: 7, height: 7, borderRadius: 999, background: "var(--crimson)" }}
-                  aria-label="needs attention"
-                />
-              ) : null}
             </Link>
           );
         })}
