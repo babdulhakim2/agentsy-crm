@@ -32,6 +32,7 @@ interface Props {
   onClose: () => void;
   onCapture?: (payload: QuickAddPayload) => void | Promise<void>;
   backendGroupId?: string;
+  allowLocalFallback?: boolean;
   source?: QuickAddPayload["source"];
   defaultTags?: string[];
   title?: string;
@@ -82,6 +83,7 @@ export function QuickAddCustomer({
   onClose,
   onCapture,
   backendGroupId,
+  allowLocalFallback = true,
   source = "manual",
   defaultTags,
   title = "Add a customer",
@@ -162,9 +164,12 @@ export function QuickAddCustomer({
       if (!result.ok && result.error) {
         throw new Error(result.error);
       }
-      // Whether or not Convex is wired, also call the local handler so the UI
-      // updates instantly (e.g. add to demo customer list during design mode).
-      await onCapture?.(payload);
+      if (!result.backend && !allowLocalFallback) {
+        throw new Error("Customer database is not ready. Finish onboarding, then try again.");
+      }
+      if (!result.backend) {
+        await onCapture?.(payload);
+      }
       setDone(true);
       setTimeout(() => onClose(), 800);
     } catch (err) {

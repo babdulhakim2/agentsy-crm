@@ -720,7 +720,7 @@ function Step4Channels({
           }}
         >
           <div className="eyebrow" style={{ color: "var(--crimson)", marginBottom: 6 }}>
-            Couldn&apos;t open Google
+            Couldn&apos;t finish setup
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.5 }}>{error}</div>
           <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 8, lineHeight: 1.5 }}>
@@ -825,10 +825,14 @@ function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
     setError(null);
     try {
       await persist();
+      finishLocally();
     } catch (err) {
       console.error("Onboarding sync failed", err);
-    } finally {
-      finishLocally();
+      let msg = err instanceof Error ? err.message : "Unknown error";
+      const match = msg.match(/Uncaught Error:\s*(.+?)(\n|$)/);
+      if (match) msg = match[1].trim();
+      setError(msg);
+      setBusy(null);
     }
   };
 

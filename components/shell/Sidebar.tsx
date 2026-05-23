@@ -8,7 +8,6 @@ import { Icon } from "../icons";
 import { AgentsyMark } from "../atoms";
 import { RestaurantLockup } from "../atoms/RestaurantMark";
 import { SiteSwitcher } from "./SiteSwitcher";
-import { FORGE } from "@/lib/data";
 
 const PRIMARY = [
   { id: "customers", href: "/customers", label: "Customers", Icon: Icon.Users },
@@ -23,7 +22,7 @@ interface SidebarProps {
 export function Sidebar({ onAddBranch }: SidebarProps = {}) {
   const pathname = usePathname() ?? "/";
   const { user, isLoaded } = useUser();
-  const ownerName = isLoaded ? user?.firstName || user?.fullName || FORGE.owner : FORGE.owner;
+  const ownerName = isLoaded ? user?.firstName || user?.fullName || "Owner" : "Owner";
   const ownerInitial = ownerName.charAt(0).toUpperCase();
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 

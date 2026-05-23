@@ -7,6 +7,7 @@ import { SiteTag } from "./SiteTag";
 import type { Customer, CustomerSource, PipelineStage } from "@/lib/types";
 import { nextActionForCustomer, SOURCES, STAGES, STAGE_BY_ID, SOURCE_LABEL } from "@/lib/pipeline";
 import { isConvexReady } from "@/lib/convex";
+import { useSite } from "@/lib/site-context";
 
 const VISIT_HISTORY = [
   { d: "18 Feb", site: "Islington", party: 2, spend: "£72", notes: '"Great visit" — Jess', svr: "Anya" },
@@ -74,6 +75,7 @@ function deriveInsights(g: Customer): string[] {
 }
 
 export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustomer, onDeleteCustomer }: Props) {
+  const { tenantName } = useSite();
   const [offerOpen, setOfferOpen] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
@@ -102,7 +104,7 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
       body: JSON.stringify({
         task: "insights",
         customer: effectiveCustomer,
-        restaurant: { name: "New Wok's Cooking" },
+        restaurant: { name: tenantName },
       }),
     })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("AI request failed"))))
@@ -120,7 +122,7 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
     return () => {
       active = false;
     };
-  }, [g.id, stage]);
+  }, [g.id, stage, tenantName]);
 
   const updateStage = async (nextStage: PipelineStage | undefined) => {
     const previousStage = stage;
@@ -447,7 +449,7 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
         <CustomerVisitHistory customer={g} />
       </div>
 
-      <OfferComposer open={offerOpen} onClose={() => setOfferOpen(false)} customer={g} />
+      <OfferComposer open={offerOpen} onClose={() => setOfferOpen(false)} customer={g} restaurantName={tenantName} />
       {onEditCustomer && (
         <EditCustomerSheet
           open={editOpen}
@@ -1008,7 +1010,7 @@ function DeleteCustomerSheet({
         </div>
 
         <div style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.5, marginBottom: 14 }}>
-          This removes the customer from this customer list on this device. You can add them again later if needed.
+          This removes the customer from this customer list. You can add them again later if needed.
         </div>
 
         {error && (

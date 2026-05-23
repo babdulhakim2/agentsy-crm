@@ -147,12 +147,12 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 
   const effectiveTenant = backendTenant ?? tenant;
   const baseSites = React.useMemo(
-    () => (effectiveTenant ? tenantSitesToAppSites(effectiveTenant) : FORGE.sites),
+    () => (effectiveTenant ? tenantSitesToAppSites(effectiveTenant) : isConvexReady() ? [] : FORGE.sites),
     [effectiveTenant]
   );
   const sites = React.useMemo(() => [...baseSites, ...extraSites], [baseSites, extraSites]);
-  const tenantName = effectiveTenant?.groupName ?? FORGE.group;
-  const ownerName = effectiveTenant?.ownerName ?? FORGE.owner;
+  const tenantName = effectiveTenant?.groupName ?? (isConvexReady() ? "Your restaurant" : FORGE.group);
+  const ownerName = effectiveTenant?.ownerName ?? (isConvexReady() ? "Owner" : FORGE.owner);
   const activeSite = activeSiteId === null ? null : sites.find((s) => s.id === activeSiteId) ?? null;
   const isAllSites = activeSiteId === null;
 
@@ -203,7 +203,7 @@ export function filterBySite<T extends { site: string }>(items: T[], activeId: A
   // Resolve current name from the merged sites list (built into the provider).
   // Importing the provider here would be circular, so we just match by id-as-name fallback.
   const tenant = readTenantFromStorage();
-  const all = tenant ? tenantSitesToAppSites(tenant) : [...FORGE.sites];
+  const all = tenant ? tenantSitesToAppSites(tenant) : isConvexReady() ? [] : [...FORGE.sites];
   const match = all.find((s) => s.id === activeId);
   if (!match) return items; // local-* (newly added) — no historical data yet
   return items.filter((i) => i.site === match.name);
@@ -225,7 +225,7 @@ function BackendTenantBridge({ onTenant }: { onTenant: (tenant: StoredTenant | n
     }
     onTenant({
       groupName: tenant.group.name,
-      ownerName: tenant.group.ownerName ?? current.user.name ?? FORGE.owner,
+      ownerName: tenant.group.ownerName ?? current.user.name ?? "Owner",
       ownerEmail: tenant.group.ownerEmail ?? current.user.email,
       timezone: tenant.group.timezone,
       primaryPhone: tenant.group.primaryPhone,

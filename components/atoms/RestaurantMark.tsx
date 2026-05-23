@@ -5,6 +5,7 @@
 
 import * as React from "react";
 import { FORGE } from "@/lib/data";
+import { isConvexReady } from "@/lib/convex";
 import { readTenantFromStorage, TENANT_CHANGED_EVENT } from "@/lib/tenant-storage";
 
 interface Props {
@@ -17,16 +18,16 @@ const LOGO_SRC = "/logo.png";
 
 function useTenantBrand() {
   const [brand, setBrand] = React.useState({
-    group: FORGE.group,
-    site: FORGE.sites[0]?.name ?? "—",
+    group: isConvexReady() ? "Your restaurant" : FORGE.group,
+    site: isConvexReady() ? "Main site" : FORGE.sites[0]?.name ?? "—",
   });
 
   React.useEffect(() => {
     const sync = () => {
       const tenant = readTenantFromStorage();
       setBrand({
-        group: tenant?.groupName ?? FORGE.group,
-        site: tenant?.sites[0]?.name ?? FORGE.sites[0]?.name ?? "—",
+        group: tenant?.groupName ?? (isConvexReady() ? "Your restaurant" : FORGE.group),
+        site: tenant?.sites[0]?.name ?? (isConvexReady() ? "Main site" : FORGE.sites[0]?.name ?? "—"),
       });
     };
     sync();

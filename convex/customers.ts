@@ -167,6 +167,61 @@ export const tag = mutation({
   },
 });
 
+export const update = mutation({
+  args: {
+    id: v.id("customers"),
+    phone: v.optional(v.string()),
+    name: v.string(),
+    email: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    customerSource: v.optional(v.string()),
+    birthMonth: v.optional(v.number()),
+    birthDay: v.optional(v.number()),
+    pipelineStage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("Customer not found.");
+    if (!args.name.trim()) throw new Error("Customer name is required.");
+
+    const phone = args.phone ? normalizePhone(args.phone) : undefined;
+    if (phone && phone.length < 7) throw new Error("Phone looks too short.");
+
+    if (phone && phone !== existing.phone) {
+      const duplicate = await ctx.db
+        .query("customers")
+        .withIndex("by_group_phone", (q) =>
+          q.eq("groupId", existing.groupId).eq("phone", phone)
+        )
+        .unique();
+      if (duplicate && duplicate._id !== args.id) {
+        throw new Error("Another customer already uses that phone number.");
+      }
+    }
+
+    await ctx.db.patch(args.id, {
+      phone: phone ?? existing.phone,
+      name: args.name.trim(),
+      email: cleanOptional(args.email),
+      tags: args.tags ?? existing.tags,
+      source: args.customerSource,
+      birthMonth: args.birthMonth,
+      birthDay: args.birthMonth ? args.birthDay : undefined,
+      pipelineStage: args.pipelineStage,
+      pipelineStageManual: args.pipelineStage ? true : existing.pipelineStageManual,
+    });
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.id("customers") },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) return;
+    await ctx.db.delete(args.id);
+  },
+});
+
 /**
  * Owner-driven stage update. Marks `pipelineStageManual` so the cron skips it.
  */

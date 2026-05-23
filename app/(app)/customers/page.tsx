@@ -9,9 +9,10 @@ import { Icon } from "@/components/icons";
 import { CustomerDetailView } from "@/components/widgets/CustomerDetailView";
 import { QuickAddCustomer, QuickAddFab, type QuickAddPayload } from "@/components/widgets/QuickAddCustomer";
 import { SiteTag } from "@/components/widgets/SiteTag";
-import type { Customer, CustomerSource, PipelineStage, Recency } from "@/lib/types";
+import type { Customer, PipelineStage } from "@/lib/types";
 import { useSite } from "@/lib/site-context";
 import { nextActionForCustomer, stageForCustomer, STAGES, STAGE_BY_ID, SOURCE_LABEL } from "@/lib/pipeline";
+import { customerFromBackend } from "@/lib/customer-adapter";
 import {
   customerPhoneKey,
   deleteLocalCustomer,
@@ -22,7 +23,7 @@ import {
 } from "@/lib/customer-storage";
 import { isConvexReady } from "@/lib/convex";
 
-const NOW_MONTH = 5; // demo: pretend we're in May
+const NOW_MONTH = new Date().getMonth() + 1;
 
 const SEGMENTS = [
   { id: "all", label: "All" },
@@ -66,8 +67,9 @@ export default function CustomersPage() {
   const [extras, setExtras] = React.useState<Customer[]>([]);
   const [backendCustomers, setBackendCustomers] = React.useState<Customer[] | null>(null);
   const [backendGroupId, setBackendGroupId] = React.useState<string | undefined>();
+  const [backendState, setBackendState] = React.useState<"loading" | "ready" | "noTenant">("loading");
   const [mounted, setMounted] = React.useState(false);
-  const [selectedId, setSelectedId] = React.useState<string>(F.customers[0].id);
+  const [selectedId, setSelectedId] = React.useState<string>("");
 
   const handleBackendCustomers = React.useCallback((customers: Customer[], groupId?: string) => {
     setBackendCustomers(customers);
@@ -76,7 +78,7 @@ export default function CustomersPage() {
 
   React.useEffect(() => {
     setMounted(true);
-    setExtras(readLocalCustomers());
+    if (!isConvexReady()) setExtras(readLocalCustomers());
   }, []);
 
   React.useEffect(() => {
@@ -95,7 +97,7 @@ export default function CustomersPage() {
       name: p.name,
       phone: p.phone,
       email: p.email,
-      site: activeSite?.name ?? sites[0]?.name ?? "Islington",
+      site: activeSite?.name ?? sites[0]?.name ?? "Main site",
       visits: 0,
       spend: 0,
       tag: "New",
@@ -110,7 +112,10 @@ export default function CustomersPage() {
     setSelectedId(id);
   };
 
-  const all = filterByActiveSite(mergeCustomers(extras, backendCustomers ?? F.customers));
+  const usingBackend = isConvexReady();
+  const baseCustomers = usingBackend ? backendCustomers ?? [] : F.customers;
+  const all = filterByActiveSite(mergeCustomers(usingBackend ? [] : extras, baseCustomers));
+  const loadingCustomers = usingBackend && backendState === "loading" && backendCustomers === null;
 
   const total = all.length;
   const activeThisMonth = all.filter((c) => stageForCustomer(c) === "active").length;
@@ -161,17 +166,31 @@ export default function CustomersPage() {
 
   const selected = all.find((c) => c.id === selectedId) ?? all[0];
 
+  React.useEffect(() => {
+    if (selectedId && all.some((customer) => customer.id === selectedId)) return;
+    setSelectedId(all[0]?.id ?? "");
+  }, [all, selectedId]);
+
   const handleRowClick = (id: string) => {
     if (isDesktop) setSelectedId(id);
     else router.push(`/customers/${id}`);
   };
 
   const handleEditCustomer = async (customer: Customer) => {
+    if (usingBackend && !customer.id.startsWith("local-")) {
+      await updateBackendCustomer(customer);
+      return;
+    }
     setExtras(upsertLocalCustomer(customer));
     setSelectedId(customer.id);
   };
 
   const handleDeleteCustomer = async (customer: Customer) => {
+    if (usingBackend && !customer.id.startsWith("local-")) {
+      await deleteBackendCustomer(customer.id);
+      setSelectedId("");
+      return;
+    }
     setExtras(deleteLocalCustomer(customer));
     const deletedPhone = customerPhoneKey(customer.phone);
     const remaining = all.filter((item) => {
@@ -184,7 +203,7 @@ export default function CustomersPage() {
   return (
     <div className="screen-twocol paper-grain">
       {mounted && isConvexReady() && (
-        <BackendCustomersBridge onData={handleBackendCustomers} />
+        <BackendCustomersBridge onData={handleBackendCustomers} onState={setBackendState} />
       )}
       <div className="screen-twocol__list">
         <div
@@ -287,7 +306,11 @@ export default function CustomersPage() {
         </div>
 
         <div style={{ flex: 1 }}>
-          {filtered.map((c) => {
+          {loadingCustomers ? (
+            <div style={{ padding: 36, textAlign: "center", color: "var(--ink-3)" }}>
+              <div className="serif-i">Loading customer book...</div>
+            </div>
+          ) : filtered.map((c) => {
             const active = isDesktop && c.id === selectedId;
             const customerStage = stageForCustomer(c);
             const stageMeta = STAGE_BY_ID[customerStage];
@@ -343,42 +366,32 @@ export default function CustomersPage() {
               </button>
             );
           })}
-          {filtered.length === 0 && (
+          {!loadingCustomers && filtered.length === 0 && (
             <div style={{ padding: 36, textAlign: "center", color: "var(--ink-3)" }}>
-              <div className="serif-i">No customers match this search.</div>
+              <div className="serif-i">
+                {backendState === "noTenant"
+                  ? "Finish onboarding to create your customer book."
+                  : q.trim()
+                    ? "No customers match this search."
+                    : "No customers yet. Add the first one when they visit."}
+              </div>
               <button
                 type="button"
                 className="btn btn-terracotta"
-                onClick={() => setAddOpen(true)}
+                onClick={() => {
+                  if (backendState === "noTenant") router.push("/onboarding");
+                  else setAddOpen(true);
+                }}
                 style={{ marginTop: 14, padding: "9px 14px", fontSize: 13 }}
               >
-                <Icon.Plus s={13} c="#fff" /> Add this customer
+                {backendState === "noTenant" ? (
+                  "Go to onboarding"
+                ) : (
+                  <>
+                    <Icon.Plus s={13} c="#fff" /> Add customer
+                  </>
+                )}
               </button>
-            </div>
-          )}
-          <div
-            style={{
-              padding: "14px 18px",
-              fontSize: 12,
-              color: "var(--ink-3)",
-              fontStyle: "italic",
-            }}
-          >
-            {backendCustomers ? "Showing saved customer data." : "Demo mode: saved locally on this device."}
-          </div>
-          {filtered.length > 0 && (
-            <div style={{ padding: "0 14px 18px" }}>
-              <div className="card" style={{ padding: 12, background: "var(--terracotta-tint)", borderColor: "rgba(184,95,58,0.18)" }}>
-                <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                  <Icon.Sparkle s={15} c="var(--terracotta)" />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>Suggested follow-up</div>
-                    <div style={{ fontSize: 12.5, color: "var(--ink-2)", marginTop: 2, lineHeight: 1.45 }}>
-                      Check at-risk regulars first, then send a personal WhatsApp offer from the customer profile.
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
         </div>
@@ -404,6 +417,7 @@ export default function CustomersPage() {
         title="Add a customer"
         subtitle="Phone + first name. Everything else can come later."
         backendGroupId={backendGroupId}
+        allowLocalFallback={!usingBackend}
       />
     </div>
   );
@@ -457,8 +471,10 @@ function MiniStat({
 
 function BackendCustomersBridge({
   onData,
+  onState,
 }: {
   onData: (customers: Customer[], groupId?: string) => void;
+  onState: (state: "loading" | "ready" | "noTenant") => void;
 }) {
   const current = useQuery(api.users.current);
   const tenant = current?.tenants.find((row) => row.group);
@@ -466,52 +482,25 @@ function BackendCustomersBridge({
   const rows = useQuery(api.customers.list, groupId ? { groupId } : "skip");
 
   React.useEffect(() => {
-    if (!tenant?.group || rows === undefined) return;
+    if (current === undefined) {
+      onState("loading");
+      return;
+    }
+    if (!tenant?.group) {
+      onData([], undefined);
+      onState("noTenant");
+      return;
+    }
+    if (rows === undefined) {
+      onState("loading");
+      return;
+    }
     const siteById = new Map(tenant.sites.map((site) => [site._id, site.name]));
     onData(rows.map((row) => customerFromBackend(row, siteById, tenant.sites[0]?.name)), tenant.group._id);
-  }, [onData, rows, tenant]);
+    onState("ready");
+  }, [current, onData, onState, rows, tenant]);
 
   return null;
-}
-
-function customerFromBackend(
-  row: {
-    _id: string;
-    phone: string;
-    email?: string;
-    name: string;
-    tags: string[];
-    visitCount: number;
-    spendCents: number;
-    lastVisitAt?: number;
-    pipelineStage?: string;
-    source?: string;
-    birthMonth?: number;
-    birthDay?: number;
-    primarySiteId?: string;
-  },
-  siteById: Map<string, string>,
-  fallbackSite?: string
-): Customer {
-  const first = row.name.trim()[0]?.toUpperCase() ?? "?";
-  const stage = asPipelineStage(row.pipelineStage);
-  return {
-    id: row._id,
-    initial: first,
-    name: row.name,
-    phone: row.phone,
-    email: row.email,
-    site: row.primarySiteId ? siteById.get(row.primarySiteId) ?? fallbackSite ?? "Main site" : fallbackSite ?? "Main site",
-    visits: row.visitCount,
-    spend: Math.round(row.spendCents / 100),
-    tag: row.tags[0] ?? (row.visitCount === 0 ? "New" : stage === "vip" ? "VIP" : "Regular"),
-    recency: recencyFromLastVisit(row.lastVisitAt),
-    last: lastSeenLabel(row.lastVisitAt),
-    pipelineStage: stage,
-    source: asCustomerSource(row.source),
-    birthMonth: row.birthMonth,
-    birthDay: row.birthDay,
-  };
 }
 
 function mergeCustomers(local: Customer[], base: Customer[]): Customer[] {
@@ -529,30 +518,36 @@ function mergeCustomers(local: Customer[], base: Customer[]): Customer[] {
   return out;
 }
 
-function recencyFromLastVisit(lastVisitAt?: number): Recency {
-  if (!lastVisitAt) return "sage";
-  const days = Math.floor((Date.now() - lastVisitAt) / 86_400_000);
-  if (days > 60) return "crimson";
-  if (days > 30) return "amber";
-  return "sage";
+async function updateBackendCustomer(customer: Customer) {
+  const res = await fetch("/api/customers/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: customer.id,
+      phone: customer.phone,
+      name: customer.name,
+      email: customer.email,
+      tags: customer.tag ? [customer.tag] : [],
+      customerSource: customer.source,
+      birthMonth: customer.birthMonth,
+      birthDay: customer.birthDay,
+      pipelineStage: customer.pipelineStage,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Could not update customer.");
+  }
 }
 
-function lastSeenLabel(lastVisitAt?: number): string {
-  if (!lastVisitAt) return "new";
-  const days = Math.max(0, Math.floor((Date.now() - lastVisitAt) / 86_400_000));
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  return `${days} days ago`;
-}
-
-function asPipelineStage(value?: string): PipelineStage | undefined {
-  return ["lead", "active", "vip", "at-risk", "recovery"].includes(value ?? "")
-    ? (value as PipelineStage)
-    : undefined;
-}
-
-function asCustomerSource(value?: string): CustomerSource | undefined {
-  return ["walk-in", "qr", "outreach", "booking", "referral", "instagram", "google", "whatsapp", "event", "other"].includes(value ?? "")
-    ? (value as CustomerSource)
-    : undefined;
+async function deleteBackendCustomer(id: string) {
+  const res = await fetch("/api/customers/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Could not delete customer.");
+  }
 }

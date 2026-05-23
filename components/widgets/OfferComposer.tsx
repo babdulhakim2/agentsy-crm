@@ -12,6 +12,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   customer: Customer;
+  restaurantName: string;
 }
 
 const OFFERS: { id: string; label: string; voucher: string }[] = [
@@ -35,7 +36,7 @@ function buildWhatsAppUrl(phone: string, body: string): string {
   return `https://wa.me/${digits}?text=${encodeURIComponent(body)}`;
 }
 
-export function OfferComposer({ open, onClose, customer }: Props) {
+export function OfferComposer({ open, onClose, customer, restaurantName }: Props) {
   const [offerId, setOfferId] = React.useState(OFFERS[2].id);
   const [body, setBody] = React.useState("");
   const [done, setDone] = React.useState(false);
@@ -64,7 +65,7 @@ export function OfferComposer({ open, onClose, customer }: Props) {
           customer,
           offer,
           nextAction: nextActionForCustomer(customer),
-          restaurant: { name: "New Wok's Cooking" },
+          restaurant: { name: restaurantName },
         }),
       })
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error("AI draft failed"))))
@@ -86,7 +87,7 @@ export function OfferComposer({ open, onClose, customer }: Props) {
         active = false;
       };
     }
-  }, [open, offerId, customer]);
+  }, [open, offerId, customer, restaurantName]);
 
   const handleOfferChange = (id: string) => {
     setOfferId(id);
