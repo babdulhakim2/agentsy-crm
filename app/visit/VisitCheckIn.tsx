@@ -123,6 +123,10 @@ export function VisitCheckIn({ groupId, siteId, siteName }: Props) {
       setError("Add a WhatsApp number so we can count your visits.");
       return;
     }
+    if (birthMonth && birthDay && (birthDay < 1 || birthDay > 31)) {
+      setError("Birthday day should be between 1 and 31.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/visits/qr", {
@@ -309,39 +313,44 @@ export function VisitCheckIn({ groupId, siteId, siteName }: Props) {
               <div style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}>
                 Birthday discounts
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 0.8fr)", gap: 8 }}>
-                <select
-                  className="select"
-                  value={birthMonth ?? ""}
-                  onChange={(event) => {
-                    const next = event.target.value ? Number(event.target.value) : undefined;
-                    setBirthMonth(next);
-                    if (!next) setBirthDay(undefined);
-                  }}
-                  aria-label="Birthday month"
-                >
-                  <option value="">Month optional</option>
-                  {MONTHS.map((month, index) => (
-                    <option key={month} value={index + 1}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 6 }}>
+                {MONTH_CHIPS.map((month, index) => {
+                  const active = birthMonth === index + 1;
+                  return (
+                    <button
+                      key={month}
+                      type="button"
+                      onClick={() => {
+                        const next = active ? undefined : index + 1;
+                        setBirthMonth(next);
+                        if (!next) setBirthDay(undefined);
+                      }}
+                      className={active ? "chip chip-terra" : "chip"}
+                      style={{ cursor: "pointer", justifyContent: "center", padding: "8px 0" }}
+                    >
                       {month}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="select"
-                  value={birthDay ?? ""}
-                  onChange={(event) => setBirthDay(event.target.value ? Number(event.target.value) : undefined)}
-                  disabled={!birthMonth}
-                  aria-label="Birthday day"
-                >
-                  <option value="">Day</option>
-                  {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
-                    <option key={day} value={day}>
-                      {day}
-                    </option>
-                  ))}
-                </select>
+                    </button>
+                  );
+                })}
               </div>
+              {birthMonth && (
+                <div className="field" style={{ marginTop: 8 }}>
+                  <label htmlFor="visit-birth-day" style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}>
+                    Day of month
+                  </label>
+                  <input
+                    id="visit-birth-day"
+                    className="input"
+                    inputMode="numeric"
+                    placeholder="e.g. 14"
+                    value={birthDay ?? ""}
+                    onChange={(event) => {
+                      const next = event.target.value.replace(/\D/g, "").slice(0, 2);
+                      setBirthDay(next ? Number(next) : undefined);
+                    }}
+                  />
+                </div>
+              )}
               <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 5 }}>
                 Add it if you want birthday rewards from the restaurant.
               </div>
@@ -385,20 +394,7 @@ export function VisitCheckIn({ groupId, siteId, siteName }: Props) {
   );
 }
 
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+const MONTH_CHIPS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function VisitBrandMark({
   name,

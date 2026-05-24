@@ -68,7 +68,7 @@ function SitesPageContent({
   onUpdate?: (site: Site, patch: { name: string; address?: string; phone?: string }) => Promise<unknown>;
   onDelete?: (site: Site) => Promise<unknown>;
 }) {
-  const { sites: allSites, activeSite, isAllSites, activeSiteName, addSite, updateSite, removeSite } = useSite();
+  const { sites: allSites, addSite, updateSite, removeSite } = useSite();
   const [addOpen, setAddOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Site | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
@@ -107,14 +107,14 @@ function SitesPageContent({
       setError(err instanceof Error ? err.message : "Could not delete site.");
     }
   };
-  const visibleSites = isAllSites ? allSites : activeSite ? [activeSite] : allSites;
+  const visibleSites = allSites;
 
   return (
     <div className="screen-desktop">
       <DesktopHeader
         eyebrow="Sites"
         title="Restaurant sites."
-        sub={`${activeSiteName}. Keep branch names and addresses clean.`}
+        sub="All branches for this restaurant. Site context elsewhere can still focus the CRM on one branch."
         right={
           <button type="button" className="btn btn-terracotta" onClick={() => setAddOpen(true)}>
             <Icon.Plus s={16} c="#fff" /> Add a branch
