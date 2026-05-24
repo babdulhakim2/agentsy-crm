@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useClerk, useUser } from "@clerk/nextjs";
-import { useAction, useConvexAuth, useMutation } from "convex/react";
+import { useAuth, useClerk, useUser } from "@clerk/nextjs";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Icon } from "@/components/icons";
 import { AgentsyMark, ProviderMark } from "@/components/atoms";
@@ -11,6 +11,7 @@ import { isConvexReady } from "@/lib/convex";
 import { readTenantFromStorage, writeTenantToStorage, type StoredTenant } from "@/lib/tenant-storage";
 
 const TOTAL_STEPS = 4;
+const ONBOARDING_DRAFT_PREFIX = "agentsy.onboardingDraft.v1";
 type WhatsAppMode = "basic" | "connected" | "managed";
 type WhatsAppSiteScope = "all_sites" | "first_site";
 
@@ -52,14 +53,43 @@ export default function OnboardingPage() {
   const [step, setStep] = React.useState(1);
   const [data, setData] = React.useState<OnboardingState>(initialState);
   const [mounted, setMounted] = React.useState(false);
+  const [loadedDraftKey, setLoadedDraftKey] = React.useState<string | null>(null);
 
   React.useEffect(() => setMounted(true), []);
 
+  const draftKey = React.useMemo(() => {
+    if (!isLoaded) return null;
+    return onboardingDraftKey(user);
+  }, [isLoaded, user?.id, user?.primaryEmailAddress?.emailAddress]);
+
   React.useEffect(() => {
+    if (!draftKey || loadedDraftKey === draftKey) return;
     const stored = readTenantFromStorage();
-    if (!stored) return;
-    setData((current) => storedTenantToState(stored, current));
-  }, []);
+    const draft = readOnboardingDraft(draftKey);
+    setData((current) => {
+      let next = stored ? storedTenantToState(stored, current) : current;
+      if (draft?.data) next = { ...next, ...draft.data };
+      return {
+        ...next,
+        ownerName: next.ownerName || user?.fullName || user?.firstName || "",
+        ownerEmail: user?.primaryEmailAddress?.emailAddress || next.ownerEmail,
+      };
+    });
+    if (draft?.step) setStep(clampStep(draft.step));
+    setLoadedDraftKey(draftKey);
+  }, [draftKey, loadedDraftKey, user]);
+
+  React.useEffect(() => {
+    if (!draftKey || loadedDraftKey !== draftKey) return;
+    writeOnboardingDraft(draftKey, {
+      step,
+      data: {
+        ...data,
+        ownerEmail: user?.primaryEmailAddress?.emailAddress || data.ownerEmail,
+      },
+      updatedAt: Date.now(),
+    });
+  }, [data, draftKey, loadedDraftKey, step, user?.primaryEmailAddress?.emailAddress]);
 
   // Pre-fill owner identity from Clerk.
   React.useEffect(() => {
@@ -67,7 +97,7 @@ export default function OnboardingPage() {
     setData((d) => ({
       ...d,
       ownerName: d.ownerName || user.fullName || user.firstName || "",
-      ownerEmail: d.ownerEmail || user.primaryEmailAddress?.emailAddress || "",
+      ownerEmail: user.primaryEmailAddress?.emailAddress || d.ownerEmail || "",
     }));
   }, [isLoaded, user]);
 
@@ -219,26 +249,60 @@ function Step4AuthStatus() {
 }
 
 function Step4AuthStatusInner() {
-  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { getToken } = useAuth();
   const { isLoaded: clerkLoaded, isSignedIn } = useUser();
+  const [status, setStatus] = React.useState<{
+    loading: boolean;
+    ok: boolean;
+    label: string;
+  }>({ loading: true, ok: false, label: "Checking Clerk token..." });
 
-  let label = "Checking…";
-  let tint = "var(--ink-3)";
-  let tintBg = "var(--paper-2)";
+  React.useEffect(() => {
+    let active = true;
+    if (!clerkLoaded) return;
+    if (!isSignedIn) {
+      setStatus({ loading: false, ok: false, label: "Not signed in to Clerk" });
+      return;
+    }
+    setStatus({ loading: true, ok: false, label: "Checking Clerk token..." });
+    getToken({ template: "convex", skipCache: true })
+      .then((token) => {
+        if (!active) return;
+        if (!token) {
+          setStatus({
+            loading: false,
+            ok: false,
+            label: "Clerk JWT template named convex did not return a token.",
+          });
+          return;
+        }
+        const claims = decodeJwtClaims(token);
+        const aud = Array.isArray(claims?.aud) ? claims.aud.join(", ") : claims?.aud;
+        const issuer = claims?.iss;
+        const ok = Boolean(issuer && aud === "convex");
+        setStatus({
+          loading: false,
+          ok,
+          label: ok
+            ? `Clerk token ready. Issuer: ${issuer}`
+            : `Check Clerk token claims. Issuer: ${issuer ?? "missing"} · audience: ${aud ?? "missing"}`,
+        });
+      })
+      .catch((err) => {
+        if (!active) return;
+        setStatus({
+          loading: false,
+          ok: false,
+          label: err instanceof Error ? err.message : "Could not read Clerk convex token.",
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [clerkLoaded, getToken, isSignedIn]);
 
-  if (clerkLoaded && !isSignedIn) {
-    label = "Not signed in to Clerk";
-    tint = "var(--crimson)";
-    tintBg = "var(--crimson-tint)";
-  } else if (clerkLoaded && isSignedIn && !isLoading && !isAuthenticated) {
-    label = "Convex didn't accept your Clerk JWT — check JWT template + CLERK_JWT_ISSUER_DOMAIN";
-    tint = "var(--crimson)";
-    tintBg = "var(--crimson-tint)";
-  } else if (isAuthenticated) {
-    label = "Signed in to Convex — ready to save";
-    tint = "var(--sage)";
-    tintBg = "var(--sage-tint)";
-  }
+  const tint = status.loading ? "var(--ink-3)" : status.ok ? "var(--sage)" : "var(--crimson)";
+  const tintBg = status.loading ? "var(--paper-2)" : status.ok ? "var(--sage-tint)" : "var(--crimson-tint)";
 
   return (
     <div
@@ -265,7 +329,7 @@ function Step4AuthStatusInner() {
           flexShrink: 0,
         }}
       />
-      {label}
+      {status.label}
     </div>
   );
 }
@@ -367,7 +431,7 @@ function Step1Welcome() {
           What we&apos;ll do
         </div>
         {[
-          ["Your restaurant", "Name, time zone, owner contact"],
+          ["Your restaurant", "Name, time zone, phone"],
           ["Your first site", "Where it is on Google Maps"],
           ["WhatsApp growth pilot", "QR links, enquiry flow and sender setup"],
           ["Google Business Profile", "So I can read reviews and reply in your voice"],
@@ -405,7 +469,7 @@ function Step2Group({
       <StepHeader
         eyebrow="Step 2 · Restaurant"
         title="Tell me about your restaurant."
-        sub="Two minutes, then we're moving."
+        sub="Your email already comes from sign-in."
       />
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div className="field">
@@ -442,16 +506,6 @@ function Step2Group({
             className="input"
             value={data.ownerName}
             onChange={(e) => set("ownerName", e.target.value)}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="owner-email">Owner email</label>
-          <input
-            id="owner-email"
-            className="input"
-            type="email"
-            value={data.ownerEmail}
-            onChange={(e) => set("ownerEmail", e.target.value)}
           />
         </div>
         <div className="field">
@@ -770,14 +824,9 @@ function LocalFinishButton({ data, router, user }: FinishProps) {
 }
 
 function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
-  const { isAuthenticated, isLoading } = useConvexAuth();
-  const complete = useMutation(api.onboarding.complete);
-  const startOAuth = useAction(api.google.startOAuth);
   const [busy, setBusy] = React.useState<"connect" | "skip" | null>(null);
+  const draftKey = onboardingDraftKey(user);
 
-  // Don't short-circuit on isAuthenticated — let the mutation actually fire so the
-  // user sees the real "Not authenticated" error from Convex if the JWT bridge
-  // isn't working, instead of a vague "couldn't save" message.
   const persist = async () => {
     const fullPayload = {
       groupName: data.group,
@@ -799,24 +848,19 @@ function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
       whatsappDisplayName: data.whatsappDisplayName || data.group || undefined,
       whatsappSiteScope: data.whatsappSiteScope,
     };
-    try {
-      return await complete(fullPayload);
-    } catch (err) {
-      if (!isLegacyWhatsAppValidatorError(err)) throw err;
-      const {
-        whatsappMode: _whatsappMode,
-        whatsappPhone: _whatsappPhone,
-        whatsappDisplayName: _whatsappDisplayName,
-        whatsappSiteScope: _whatsappSiteScope,
-        ...legacyPayload
-      } = fullPayload;
-      console.warn("Convex onboarding.complete is missing WhatsApp fields; retrying legacy payload.");
-      return await complete(legacyPayload);
-    }
+    const res = await fetch("/api/onboarding/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fullPayload),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error ?? "Could not save onboarding.");
+    return body.result as { groupId: string; siteIds: string[] };
   };
 
   const finishLocally = () => {
     writeTenantToStorage(buildStoredTenant(data, user));
+    clearOnboardingDraft(draftKey);
     router.push("/customers");
   };
 
@@ -846,7 +890,7 @@ function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
           "Convex didn't return a site id. The mutation succeeded but the response is empty — check `convex/onboarding.ts` logs."
         );
       }
-      const oauth = await startOAuth({
+      const oauth = await startGoogleOAuth({
         groupId: result.groupId,
         siteId: result.siteIds[0],
         redirectAfter: `${window.location.origin}/customers`,
@@ -855,6 +899,7 @@ function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
         throw new Error("Google didn't return a consent URL. Check the Convex action logs.");
       }
       writeTenantToStorage(buildStoredTenant(data, user));
+      clearOnboardingDraft(draftKey);
       window.location.href = oauth.url;
     } catch (err) {
       console.error("Could not start Google OAuth", err);
@@ -867,7 +912,7 @@ function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
     }
   };
 
-  const disabled = busy !== null || isLoading;
+  const disabled = busy !== null;
 
   return (
     <div style={{ display: "flex", gap: 8, flex: 1 }}>
@@ -894,15 +939,19 @@ function ConvexFinishButtons({ data, router, user, setError }: FinishProps) {
   );
 }
 
-function isLegacyWhatsAppValidatorError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err ?? "");
-  return (
-    msg.includes("ArgumentValidationError") &&
-    (msg.includes("whatsappMode") ||
-      msg.includes("whatsappPhone") ||
-      msg.includes("whatsappDisplayName") ||
-      msg.includes("whatsappSiteScope"))
-  );
+async function startGoogleOAuth(args: {
+  groupId: string;
+  siteId: string;
+  redirectAfter: string;
+}): Promise<{ url: string }> {
+  const res = await fetch("/api/google/start-oauth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error ?? "Could not start Google OAuth.");
+  return body as { url: string };
 }
 
 // ── Storage helper ────────────────────────────────────────────
@@ -954,4 +1003,66 @@ function storedTenantToState(stored: StoredTenant, current: OnboardingState): On
     siteCity: current.siteCity || firstSite?.city || "London",
     sitePostcode: current.sitePostcode || firstSite?.postcode || "",
   };
+}
+
+interface OnboardingDraft {
+  step: number;
+  data: OnboardingState;
+  updatedAt: number;
+}
+
+function onboardingDraftKey(user: ReturnType<typeof useUser>["user"]): string {
+  const userKey = user?.id || user?.primaryEmailAddress?.emailAddress || "anonymous";
+  return `${ONBOARDING_DRAFT_PREFIX}:${userKey}`;
+}
+
+function readOnboardingDraft(key: string): OnboardingDraft | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<OnboardingDraft>;
+    if (!parsed || typeof parsed !== "object" || !parsed.data) return null;
+    return {
+      step: clampStep(Number(parsed.step) || 1),
+      data: { ...initialState, ...parsed.data },
+      updatedAt: Number(parsed.updatedAt) || Date.now(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeOnboardingDraft(key: string, draft: OnboardingDraft) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    /* no-op */
+  }
+}
+
+function clearOnboardingDraft(key: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* no-op */
+  }
+}
+
+function clampStep(value: number): number {
+  return Math.min(TOTAL_STEPS, Math.max(1, Math.round(value)));
+}
+
+function decodeJwtClaims(token: string): { iss?: string; aud?: string | string[] } | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(window.atob(padded)) as { iss?: string; aud?: string | string[] };
+  } catch {
+    return null;
+  }
 }
