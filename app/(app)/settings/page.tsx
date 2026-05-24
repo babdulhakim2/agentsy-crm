@@ -4,6 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Icon } from "@/components/icons";
 import { DesktopHeader } from "@/components/shell/DesktopHeader";
 import { useSite } from "@/lib/site-context";
 import { isConvexReady } from "@/lib/convex";
@@ -488,6 +489,7 @@ function QrCard({
   const [visitsDraft, setVisitsDraft] = React.useState(String(visitsRequired));
   const [rewardDraft, setRewardDraft] = React.useState(rewardLabel);
   const [savingReward, setSavingReward] = React.useState(false);
+  const [editingReward, setEditingReward] = React.useState(false);
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=12&data=${encodeURIComponent(visitUrl)}`;
 
   React.useEffect(() => {
@@ -501,6 +503,7 @@ function QrCard({
     setSavingReward(true);
     try {
       await onSaveReward({ visitsRequired: nextVisits, rewardLabel: nextReward });
+      setEditingReward(false);
     } finally {
       setSavingReward(false);
     }
@@ -529,7 +532,7 @@ function QrCard({
           )}
         </div>
         <div style={{ flex: "1 1 280px", minWidth: 0 }}>
-          <div className="eyebrow" style={{ marginBottom: 8 }}>
+          <div className="eyebrow qr-print-hide" style={{ marginBottom: 8 }}>
             {title}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -539,17 +542,28 @@ function QrCard({
               <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{siteName}</div>
             </div>
           </div>
-          <div style={{ fontFamily: "var(--serif)", fontSize: 26, lineHeight: 1.1 }}>
-            {visitsRequired} visits unlock {rewardLabel}.
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ fontFamily: "var(--serif)", fontSize: 26, lineHeight: 1.1 }}>
+              {visitsRequired} visits unlock {rewardLabel}.
+            </div>
+            <button
+              type="button"
+              className="icon-btn qr-print-hide"
+              onClick={() => setEditingReward((value) => !value)}
+              aria-label="Edit QR reward"
+              style={{ width: 30, height: 30, flexShrink: 0 }}
+            >
+              <Icon.Edit s={14} />
+            </button>
           </div>
-          <div style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.5, marginTop: 8 }}>
+          <div className="qr-print-hide" style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.5, marginTop: 8 }}>
             Put this at the counter. Customers scan it after a visit, leave quick feedback, and the visit is logged on their customer profile.
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          <div className="qr-print-hide" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
             <span className="chip">{siteName}</span>
             <span className="chip chip-sage">{mode}</span>
           </div>
-          <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="qr-print-hide" style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
             <a className="btn btn-ghost" href={visitUrl} target="_blank" rel="noreferrer" style={{ padding: "9px 12px", fontSize: 13 }}>
               Open form
             </a>
@@ -562,44 +576,50 @@ function QrCard({
           </div>
         </div>
       </div>
-      <div
-        className="qr-print-hide"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(120px, 0.6fr) minmax(180px, 1fr) auto",
-          gap: 10,
-          alignItems: "end",
-          marginTop: 18,
-          paddingTop: 16,
-          borderTop: "1px solid var(--rule)",
-        }}
-      >
-        <div className="field">
-          <label htmlFor={`reward-visits-${siteName}`}>Visits required</label>
-          <input
-            id={`reward-visits-${siteName}`}
-            className="input"
-            type="number"
-            min={1}
-            max={20}
-            value={visitsDraft}
-            onChange={(event) => setVisitsDraft(event.target.value)}
-          />
+      {editingReward && (
+        <div
+          className="qr-print-hide"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+            gap: 8,
+            alignItems: "end",
+            marginTop: 14,
+            padding: 12,
+            borderRadius: 10,
+            background: "var(--paper-2)",
+          }}
+        >
+          <div className="field">
+            <label htmlFor={`reward-visits-${siteName}`}>Visits</label>
+            <input
+              id={`reward-visits-${siteName}`}
+              className="input"
+              type="number"
+              min={1}
+              max={20}
+              value={visitsDraft}
+              onChange={(event) => setVisitsDraft(event.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={`reward-label-${siteName}`}>Reward</label>
+            <input
+              id={`reward-label-${siteName}`}
+              className="input"
+              value={rewardDraft}
+              onChange={(event) => setRewardDraft(event.target.value)}
+              placeholder="20% off"
+            />
+          </div>
+          <button type="button" className="btn btn-terracotta" onClick={saveReward} disabled={savingReward} style={{ padding: "10px 13px" }}>
+            {savingReward ? "Saving..." : "Save"}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setEditingReward(false)} style={{ padding: "10px 13px" }}>
+            Cancel
+          </button>
         </div>
-        <div className="field">
-          <label htmlFor={`reward-label-${siteName}`}>Reward</label>
-          <input
-            id={`reward-label-${siteName}`}
-            className="input"
-            value={rewardDraft}
-            onChange={(event) => setRewardDraft(event.target.value)}
-            placeholder="20% off"
-          />
-        </div>
-        <button type="button" className="btn btn-terracotta" onClick={saveReward} disabled={savingReward} style={{ padding: "10px 13px" }}>
-          {savingReward ? "Saving..." : "Save QR"}
-        </button>
-      </div>
+      )}
       {rewardMessage && (
         <div className="chip qr-print-hide" style={{ marginTop: 10, whiteSpace: "normal" }}>
           {rewardMessage}
