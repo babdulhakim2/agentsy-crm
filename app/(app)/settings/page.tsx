@@ -630,13 +630,62 @@ function LocalLeadQrCard({
 }
 
 function printQrCard(key: "visit" | "lead") {
+  const target = document.querySelector<HTMLElement>(`.qr-print-card[data-print-key="${key}"]`);
+  if (!target) {
+    window.print();
+    return;
+  }
+
+  document.querySelector(".qr-print-root")?.remove();
+  const printRoot = document.createElement("div");
+  printRoot.className = "qr-print-root";
+  printRoot.dataset.printKey = key;
+  printRoot.appendChild(target.cloneNode(true));
+  document.body.appendChild(printRoot);
   document.body.dataset.printQr = key;
+  document.body.classList.add("qr-printing");
+
+  let clearFallback = 0;
   const clearPrintTarget = () => {
     if (document.body.dataset.printQr === key) delete document.body.dataset.printQr;
+    document.body.classList.remove("qr-printing");
+    printRoot.remove();
     window.removeEventListener("afterprint", clearPrintTarget);
+    window.clearTimeout(clearFallback);
   };
   window.addEventListener("afterprint", clearPrintTarget, { once: true });
-  window.print();
+  clearFallback = window.setTimeout(clearPrintTarget, 60_000);
+  waitForPrintImages(printRoot).finally(() => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => window.print());
+    });
+  });
+}
+
+function waitForPrintImages(root: HTMLElement): Promise<void> {
+  const images = Array.from(root.querySelectorAll("img"));
+  if (images.length === 0) return Promise.resolve();
+  const loaded = Promise.all(
+    images.map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          if (image.complete && image.naturalWidth > 0) {
+            resolve();
+            return;
+          }
+          const done = () => resolve();
+          image.addEventListener("load", done, { once: true });
+          image.addEventListener("error", done, { once: true });
+          if (typeof image.decode === "function") {
+            image.decode().then(done).catch(done);
+          }
+        })
+    )
+  ).then(() => undefined);
+  return Promise.race([
+    loaded,
+    new Promise<void>((resolve) => window.setTimeout(resolve, 3500)),
+  ]);
 }
 
 function QrCard({
