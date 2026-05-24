@@ -614,6 +614,9 @@ function Step4Channels({
   const previewUrl = previewDigits
     ? `wa.me/${previewDigits}?text=${encodeURIComponent(`Hi ${displayName}, I'd like to ask about catering.`)}`
     : "Add a business WhatsApp number to create the QR/click link.";
+  const isConvexAuthError = Boolean(
+    error && /Convex rejected the Clerk JWT|NoAuthProvider|JWT issuer/i.test(error)
+  );
   const modes: Array<{
     id: WhatsAppMode;
     title: string;
@@ -777,17 +780,28 @@ function Step4Channels({
             Couldn&apos;t finish setup
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.5 }}>{error}</div>
-          <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 8, lineHeight: 1.5 }}>
-            Most common causes: <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>GOOGLE_CLIENT_ID</code>,{" "}
-            <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>GOOGLE_CLIENT_SECRET</code> or{" "}
-            <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>GOOGLE_REDIRECT_URI</code> isn&apos;t set on the
-            Convex deployment (run <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>npx convex env set NAME value</code>),
-            or the redirect URI in Google Cloud Console doesn&apos;t match{" "}
-            <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-              {typeof window !== "undefined" ? window.location.origin : ""}
-            </code>
-            -&gt; <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>/oauth/google/callback</code> on the Convex side.
-          </div>
+          {isConvexAuthError ? (
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 8, lineHeight: 1.5 }}>
+              Fix the Convex deployment auth provider first. The Convex{" "}
+              <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>CLERK_JWT_ISSUER_DOMAIN</code> env value must
+              match the JWT issuer exactly, then Convex must be deployed so{" "}
+              <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>auth.config.ts</code> picks it up.
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 8, lineHeight: 1.5 }}>
+              Most common causes: <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>GOOGLE_CLIENT_ID</code>,{" "}
+              <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>GOOGLE_CLIENT_SECRET</code> or{" "}
+              <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>GOOGLE_REDIRECT_URI</code> isn&apos;t set on the
+              Convex deployment (run{" "}
+              <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>npx convex env set NAME value</code>), or the
+              redirect URI in Google Cloud Console doesn&apos;t match{" "}
+              <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
+                {typeof window !== "undefined" ? window.location.origin : ""}
+              </code>
+              -&gt; <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>/oauth/google/callback</code> on the Convex
+              side.
+            </div>
+          )}
         </div>
       )}
     </div>
