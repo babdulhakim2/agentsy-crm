@@ -631,10 +631,12 @@ function LocalLeadQrCard({
 
 function printQrCard(key: "visit" | "lead") {
   document.body.dataset.printQr = key;
-  window.print();
-  window.setTimeout(() => {
+  const clearPrintTarget = () => {
     if (document.body.dataset.printQr === key) delete document.body.dataset.printQr;
-  }, 500);
+    window.removeEventListener("afterprint", clearPrintTarget);
+  };
+  window.addEventListener("afterprint", clearPrintTarget, { once: true });
+  window.print();
 }
 
 function QrCard({

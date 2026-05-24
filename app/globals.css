@@ -728,6 +728,15 @@ a { color: inherit; text-decoration: none; }
   }
 
   .qr-print-card {
+    display: none !important;
+  }
+
+  body[data-print-qr="visit"] .qr-print-card[data-print-key="visit"],
+  body[data-print-qr="lead"] .qr-print-card[data-print-key="lead"] {
+    display: block !important;
+  }
+
+  .qr-print-card {
     position: absolute;
     inset: 0 auto auto 0;
     width: 100%;
