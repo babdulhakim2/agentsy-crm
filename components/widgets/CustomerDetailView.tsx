@@ -227,7 +227,6 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
          
         </div>
       </div>
-
       {g.recency === "crimson" && (
         <div
           className="card"
