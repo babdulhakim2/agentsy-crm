@@ -98,15 +98,18 @@ function LocalBrandingSettingsCard({
 }) {
   const [name, setName] = React.useState(tenantName);
   const [logoPreview, setLogoPreview] = React.useState(logoUrl ?? "");
+  const [logoFileName, setLogoFileName] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setName(tenantName);
     setLogoPreview(logoUrl ?? "");
+    setLogoFileName(null);
   }, [tenantName, logoUrl]);
 
   const handleLogoFile = (file: File | null) => {
     if (!file) return;
+    setLogoFileName(file.name);
     const reader = new FileReader();
     reader.onload = () => setLogoPreview(typeof reader.result === "string" ? reader.result : "");
     reader.readAsDataURL(file);
@@ -137,6 +140,7 @@ function LocalBrandingSettingsCard({
       logoPreview={logoPreview}
       saving={false}
       message={message}
+      logoFileName={logoFileName}
       onNameChange={setName}
       onLogoFileChange={handleLogoFile}
       onSubmit={onSave}
@@ -159,6 +163,7 @@ function BrandingSettingsCard({
   const [name, setName] = React.useState(tenantName);
   const [logoPreview, setLogoPreview] = React.useState(logoUrl ?? "");
   const [logoFile, setLogoFile] = React.useState<File | null>(null);
+  const [logoFileName, setLogoFileName] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
 
@@ -166,11 +171,13 @@ function BrandingSettingsCard({
     setName(tenantName);
     setLogoPreview(logoUrl ?? "");
     setLogoFile(null);
+    setLogoFileName(null);
   }, [tenantName, logoUrl]);
 
   const handleLogoFile = (file: File | null) => {
     setLogoFile(file);
     if (!file) return;
+    setLogoFileName(file.name);
     setLogoPreview(URL.createObjectURL(file));
   };
 
@@ -234,6 +241,7 @@ function BrandingSettingsCard({
       logoPreview={logoPreview}
       saving={saving}
       message={message}
+      logoFileName={logoFileName}
       onNameChange={setName}
       onLogoFileChange={handleLogoFile}
       onSubmit={onSave}
@@ -246,6 +254,7 @@ function BrandingSettingsForm({
   logoPreview,
   saving,
   message,
+  logoFileName,
   onNameChange,
   onLogoFileChange,
   onSubmit,
@@ -254,17 +263,62 @@ function BrandingSettingsForm({
   logoPreview?: string;
   saving: boolean;
   message: string | null;
+  logoFileName?: string | null;
   onNameChange: (value: string) => void;
   onLogoFileChange: (file: File | null) => void;
   onSubmit: (event: React.FormEvent) => void | Promise<void>;
 }) {
+  const fileInputId = "brand-logo-upload";
   return (
     <form className="card" style={{ padding: 22, marginBottom: 14 }} onSubmit={onSubmit}>
-      <div className="eyebrow" style={{ marginBottom: 10 }}>
-        Restaurant brand
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "flex-start", marginBottom: 16 }}>
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 7 }}>
+            Restaurant brand
+          </div>
+          <div style={{ fontFamily: "var(--serif)", fontSize: 23, lineHeight: 1.12 }}>
+            How customers see this restaurant.
+          </div>
+        </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "64px minmax(0, 1fr)", gap: 14, alignItems: "center" }}>
-        <BrandPreview name={name || "Restaurant"} logoUrl={logoPreview} />
+      <div style={{ display: "grid", gridTemplateColumns: "132px minmax(0, 1fr)", gap: 18, alignItems: "stretch" }}>
+        <label
+          htmlFor={fileInputId}
+          style={{
+            minHeight: 132,
+            borderRadius: 14,
+            border: "1px solid var(--rule)",
+            background: "var(--paper-2)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            padding: 12,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <BrandPreview name={name || "Restaurant"} logoUrl={logoPreview} size={92} />
+          <span
+            style={{
+              position: "absolute",
+              right: 10,
+              bottom: 10,
+              width: 30,
+              height: 30,
+              borderRadius: 999,
+              background: "var(--ink)",
+              color: "var(--paper)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 8px 18px rgba(26,22,18,0.18)",
+            }}
+            aria-hidden
+          >
+            <Icon.Upload s={14} />
+          </span>
+        </label>
         <div style={{ display: "grid", gap: 10 }}>
           <div className="field">
             <label htmlFor="brand-name">Restaurant name</label>
@@ -276,15 +330,24 @@ function BrandingSettingsForm({
               placeholder="New Wok's Cooking"
             />
           </div>
-          <div className="field">
-            <label htmlFor="brand-logo">Logo image</label>
+          <div>
             <input
-              id="brand-logo"
-              className="input"
+              id={fileInputId}
               type="file"
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
               onChange={(event) => onLogoFileChange(event.target.files?.[0] ?? null)}
+              style={{ display: "none" }}
             />
+            <label
+              htmlFor={fileInputId}
+              className="btn btn-ghost"
+              style={{ justifyContent: "flex-start", width: "100%", padding: "12px 13px", cursor: "pointer" }}
+            >
+              <Icon.Upload s={15} /> {logoPreview ? "Replace logo" : "Upload logo"}
+            </label>
+            <div style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 7, lineHeight: 1.4 }}>
+              {logoFileName || "PNG, JPG, WebP or SVG. Square images look best."}
+            </div>
           </div>
         </div>
       </div>
@@ -305,16 +368,16 @@ function BrandingSettingsForm({
   );
 }
 
-function BrandPreview({ name, logoUrl }: { name: string; logoUrl?: string }) {
+function BrandPreview({ name, logoUrl, size = 64 }: { name: string; logoUrl?: string; size?: number }) {
   const [failed, setFailed] = React.useState(false);
   const letter = name.replace(/^the\s+/i, "").charAt(0).toUpperCase() || "R";
   React.useEffect(() => setFailed(false), [logoUrl]);
   return (
     <div
       style={{
-        width: 64,
-        height: 64,
-        borderRadius: 14,
+        width: size,
+        height: size,
+        borderRadius: Math.max(14, size * 0.18),
         background: "var(--terracotta)",
         color: "#fff",
         display: "flex",
@@ -322,7 +385,7 @@ function BrandPreview({ name, logoUrl }: { name: string; logoUrl?: string }) {
         justifyContent: "center",
         overflow: "hidden",
         fontFamily: "var(--serif)",
-        fontSize: 30,
+        fontSize: size * 0.46,
         boxShadow: "0 8px 24px rgba(26,22,18,0.10)",
       }}
     >

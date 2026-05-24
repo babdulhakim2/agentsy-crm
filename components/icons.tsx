@@ -135,6 +135,13 @@ export const Icon = {
       <path d="M16.5 3.5a2 2 0 0 1 2.8 2.8L7 18.5 3 20l1.5-4z" />
     </SVG>
   ),
+  Upload: ({ s = 16, c = "currentColor", w = 1.7, className }: IconProps) => (
+    <SVG size={s} stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 16V4" />
+      <path d="M7 9l5-5 5 5" />
+      <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+    </SVG>
+  ),
   Trash: ({ s = 16, c = "currentColor", w = 1.6, className }: IconProps) => (
     <SVG size={s} stroke={c} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M3 6h18" />
