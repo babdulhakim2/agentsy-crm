@@ -67,39 +67,6 @@ export default function SettingsPage() {
           )}
         </section>
 
-        <div className="card" style={{ padding: 22, marginBottom: 14 }}>
-          <div className="eyebrow" style={{ marginBottom: 10 }}>
-            Notifications
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            {[
-              ["Daily morning brief", "WhatsApp + email · 08:30", true],
-              ["Negative review (≤3★)", "WhatsApp · within 5 minutes", true],
-              ["Campaign approvals", "Email digest · daily", false],
-            ].map(([k, v, on]) => (
-              <div
-                key={k as string}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  padding: "12px 0",
-                  borderBottom: "1px solid var(--rule)",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{k}</div>
-                  <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{v}</div>
-                </div>
-                <button
-                  type="button"
-                  className={"toggle" + (on ? " on" : "")}
-                  aria-label={`Toggle ${k}`}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
         <div className="card" style={{ padding: 22 }}>
           <div className="eyebrow" style={{ marginBottom: 10 }}>
             Security
