@@ -44,8 +44,15 @@ export async function POST(req: NextRequest) {
     } as Parameters<typeof client.action>[1]);
     return NextResponse.json(result);
   } catch (err) {
+    console.error("Google OAuth Convex action failed", {
+      convexUrl: url,
+      error: err instanceof Error ? err.message : String(err ?? "Unknown error"),
+    });
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Could not start Google OAuth." },
+      {
+        error: err instanceof Error ? err.message : "Could not start Google OAuth.",
+        convexUrl: url,
+      },
       { status: 500 }
     );
   }

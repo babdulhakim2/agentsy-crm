@@ -794,12 +794,8 @@ function Step4Channels({
               <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>GOOGLE_REDIRECT_URI</code> isn&apos;t set on the
               Convex deployment (run{" "}
               <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>npx convex env set NAME value</code>), or the
-              redirect URI in Google Cloud Console doesn&apos;t match{" "}
-              <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>
-                {typeof window !== "undefined" ? window.location.origin : ""}
-              </code>
-              -&gt; <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>/oauth/google/callback</code> on the Convex
-              side.
+              redirect URI in Google Cloud Console doesn&apos;t match the Convex{" "}
+              <code style={{ fontFamily: "var(--mono)", fontSize: 11 }}>.convex.site</code> callback URL.
             </div>
           )}
         </div>

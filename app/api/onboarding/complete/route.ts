@@ -78,7 +78,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, result, legacyCustomerSchema: true, tokenClaims });
     }
   } catch (err) {
-    return NextResponse.json({ error: authErrorMessage(err, tokenClaims), tokenClaims }, { status: 500 });
+    const error = authErrorMessage(err, tokenClaims, url);
+    console.error("Onboarding Convex sync failed", {
+      convexUrl: url,
+      tokenClaims,
+      error: err instanceof Error ? err.message : String(err ?? "Unknown error"),
+    });
+    return NextResponse.json({ error, convexUrl: url, tokenClaims }, { status: 500 });
   }
 }
 
@@ -93,12 +99,17 @@ function isLegacyWhatsAppValidatorError(err: unknown): boolean {
   );
 }
 
-function authErrorMessage(err: unknown, claims: { iss?: string; aud?: string | string[] } | null): string {
+function authErrorMessage(
+  err: unknown,
+  claims: { iss?: string; aud?: string | string[] } | null,
+  convexUrl: string
+): string {
   const raw = err instanceof Error ? err.message : String(err ?? "Unknown error");
   const aud = Array.isArray(claims?.aud) ? claims.aud.join(", ") : claims?.aud;
   if (/auth|token|jwt|unauth/i.test(raw)) {
     return [
       "Convex rejected the Clerk JWT.",
+      `Convex URL: ${convexUrl}.`,
       `JWT issuer: ${claims?.iss ?? "missing"}.`,
       `JWT audience: ${aud ?? "missing"}.`,
       'Convex CLERK_JWT_ISSUER_DOMAIN must exactly match the issuer, and auth.config.ts applicationID must match audience "convex".',

@@ -92,16 +92,18 @@ The default model is `google/gemini-2.5-flash`. Edit `convex/ai.ts` if you want 
 ## 4. Google Business Profile
 
 1. Go to <https://console.cloud.google.com/apis/credentials>, create an OAuth 2.0 Web Client.
-2. Authorized redirect URI: `<YOUR_CONVEX_URL>/oauth/google/callback`
+2. Authorized redirect URI: `https://<your-convex>.convex.site/oauth/google/callback`
 3. Enable the **My Business** APIs (Account Management + Business Information + Business Profile Performance).
 4. Set the secrets in Convex:
     ```
     npx convex env set GOOGLE_CLIENT_ID xxx
     npx convex env set GOOGLE_CLIENT_SECRET xxx
-    npx convex env set GOOGLE_REDIRECT_URI https://<your-convex>.convex.cloud/oauth/google/callback
+    npx convex env set GOOGLE_REDIRECT_URI https://<your-convex>.convex.site/oauth/google/callback
     ```
 
-To start a connection from the UI, call the `google.startOAuth` mutation; it returns a `url` to redirect the browser to. After consent, Google redirects to the Convex callback which stores the tokens.
+Use the Convex HTTP site URL for callbacks. The function client URL ends in `.convex.cloud`, but HTTP routes such as `/oauth/google/callback` are served from `.convex.site`.
+
+To start a connection from the UI, call the `google.startOAuth` action; it returns a `url` to redirect the browser to. After consent, Google redirects to the Convex callback which stores the tokens.
 
 To pull reviews:
 
