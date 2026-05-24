@@ -30,6 +30,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       mode: "demo",
+      counted: true,
+      duplicate: false,
       visitCount: 1,
       rewardUnlocked: false,
       visitsUntilReward: 2,
@@ -62,6 +64,8 @@ export async function POST(req: NextRequest) {
         ok: true,
         mode: "demo",
         pendingDeployment: true,
+        counted: true,
+        duplicate: false,
         visitCount: 1,
         rewardUnlocked: false,
         visitsUntilReward: 2,

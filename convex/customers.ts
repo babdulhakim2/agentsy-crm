@@ -7,6 +7,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 const CONSENT_SOURCES = ["host_stand", "qr", "manual", "booking_widget"] as const;
+const QR_VISIT_COOLDOWN_MS = 20 * 60 * 60 * 1000;
 const CUSTOMER_SOURCES = [
   "walk-in",
   "qr",
@@ -125,6 +126,36 @@ function inferImportedSource(contact: { event?: boolean; notes?: string; role?: 
 
 function normalizeCustomerSource(value?: string): string {
   return CUSTOMER_SOURCES.includes(value as (typeof CUSTOMER_SOURCES)[number]) ? value! : "qr";
+}
+
+function rewardProgress(visitCount: number, visitsRequired: number) {
+  if (visitCount <= 0) {
+    return {
+      rewardUnlocked: false,
+      visitsUntilReward: visitsRequired,
+    };
+  }
+  const remainder = visitCount % visitsRequired;
+  return {
+    rewardUnlocked: visitCount > 0 && remainder === 0,
+    visitsUntilReward: remainder === 0 ? 0 : visitsRequired - remainder,
+  };
+}
+
+async function recentCountedVisitForCustomer(
+  ctx: DatabaseCtx,
+  groupId: Id<"groups">,
+  customerId: Id<"customers">,
+  siteId: Id<"sites">,
+  now: number
+): Promise<Doc<"visits"> | null> {
+  const cutoff = now - QR_VISIT_COOLDOWN_MS;
+  const rows = await ctx.db
+    .query("visits")
+    .withIndex("by_group_customer", (q) => q.eq("groupId", groupId).eq("customerId", customerId))
+    .order("desc")
+    .take(12);
+  return rows.find((visit) => visit.siteId === siteId && visit.at >= cutoff) ?? null;
 }
 
 function buildImportTags(contact: {
@@ -956,8 +987,36 @@ export const publicQrVisit = mutation({
     const ratingText = args.rating ? `Rating: ${args.rating}/5` : undefined;
     const notes = [ratingText, feedback].filter(Boolean).join(" · ") || undefined;
     const site = await ctx.db.get(args.siteId);
+    if (!site || site.groupId !== args.groupId) throw new Error("Visit QR is not valid for this site.");
     const visitsRequired = Math.max(1, Math.round(site?.visitRewardVisits ?? 3));
     const rewardLabel = cleanOptional(site?.visitRewardLabel)?.slice(0, 80) ?? "20% off";
+    const recentVisit = await recentCountedVisitForCustomer(ctx, args.groupId, customerId, args.siteId, now);
+
+    if (recentVisit) {
+      const progress = rewardProgress(customer.visitCount, visitsRequired);
+      await ctx.db.patch(customerId, {
+        name: args.name.trim() || customer.name,
+        consent: {
+          whatsapp: args.consentWhatsapp ?? customer.consent.whatsapp,
+          email: customer.consent.email,
+          capturedAt: now,
+          source: "qr",
+        },
+        birthMonth: args.birthMonth ?? customer.birthMonth,
+        birthDay: args.birthMonth ? args.birthDay : customer.birthDay,
+      });
+      return {
+        customerId,
+        visitId: recentVisit._id,
+        visitCount: customer.visitCount,
+        duplicate: true,
+        counted: false,
+        nextEligibleAt: recentVisit.at + QR_VISIT_COOLDOWN_MS,
+        ...progress,
+        visitsRequired,
+        rewardLabel,
+      };
+    }
 
     const visitId = await ctx.db.insert("visits", {
       groupId: args.groupId,
@@ -1000,12 +1059,10 @@ export const publicQrVisit = mutation({
     return {
       customerId,
       visitId,
+      duplicate: false,
+      counted: true,
       visitCount: nextVisitCount,
-      rewardUnlocked: nextVisitCount % visitsRequired === 0,
-      visitsUntilReward:
-        nextVisitCount % visitsRequired === 0
-          ? 0
-          : visitsRequired - (nextVisitCount % visitsRequired),
+      ...rewardProgress(nextVisitCount, visitsRequired),
       visitsRequired,
       rewardLabel,
     };

@@ -11,6 +11,9 @@ interface Props {
 
 interface Result {
   mode?: "convex" | "demo";
+  counted?: boolean;
+  duplicate?: boolean;
+  nextEligibleAt?: number;
   visitCount?: number;
   rewardUnlocked?: boolean;
   visitsUntilReward?: number;
@@ -156,6 +159,7 @@ export function VisitCheckIn({ groupId, siteId, siteName }: Props) {
 
   const visitCount = result?.visitCount ?? 0;
   const visitsUntilReward = result?.visitsUntilReward ?? 2;
+  const isDuplicateVisit = Boolean(result?.duplicate || result?.counted === false);
 
   return (
     <main className="screen-bleed paper-grain" style={{ minHeight: "100dvh", padding: 18 }}>
@@ -212,10 +216,12 @@ export function VisitCheckIn({ groupId, siteId, siteName }: Props) {
               <Icon.Check s={30} c="var(--sage)" />
             </div>
             <div style={{ fontFamily: "var(--serif)", fontSize: 26 }}>
-              Visit logged.
+              {isDuplicateVisit ? "Already checked in." : "Visit logged."}
             </div>
             <div style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.5, marginTop: 8 }}>
-              {result.rewardUnlocked
+              {isDuplicateVisit
+                ? `We found a recent check-in for this number at this branch, so another loyalty visit was not added${result.nextEligibleAt ? ` until ${formatNextEligibleTime(result.nextEligibleAt)}` : ""}.`
+                : result.rewardUnlocked
                 ? `You have unlocked ${rewardLabel} on your next visit. Show this screen at the till.`
                 : `You are on visit ${visitCount}. ${visitsUntilReward} more to unlock ${rewardLabel}.`}
             </div>
@@ -227,6 +233,9 @@ export function VisitCheckIn({ groupId, siteId, siteName }: Props) {
           </div>
         ) : (
           <form className="card" style={{ padding: 18 }} onSubmit={submit}>
+            <div className="chip" style={{ marginBottom: 12, whiteSpace: "normal", lineHeight: 1.35 }}>
+              One loyalty visit can be counted per phone at this branch each day.
+            </div>
             <div className="field" style={{ marginBottom: 12 }}>
               <label htmlFor="visit-phone">WhatsApp number</label>
               <input
@@ -385,7 +394,7 @@ export function VisitCheckIn({ groupId, siteId, siteName }: Props) {
             )}
 
             <button type="submit" className="btn btn-terracotta" disabled={saving} style={{ width: "100%", padding: 15 }}>
-              {saving ? "Logging visit..." : "Log my visit"}
+              {saving ? "Checking in..." : "Check in"}
             </button>
           </form>
         )}
@@ -395,6 +404,14 @@ export function VisitCheckIn({ groupId, siteId, siteName }: Props) {
 }
 
 const MONTH_CHIPS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatNextEligibleTime(timestamp: number): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
 
 function VisitBrandMark({
   name,
