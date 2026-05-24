@@ -96,15 +96,16 @@ export const current = query({
     const tenants = await Promise.all(
       memberships.map(async (membership) => {
         const group = await ctx.db.get(membership.groupId);
-        const sites = await ctx.db
+        const sites = (await ctx.db
           .query("sites")
           .withIndex("by_group", (q) => q.eq("groupId", membership.groupId))
-          .collect();
+          .collect()).filter((site) => site.status !== "archived");
         const visibleSites =
           membership.siteIds.length > 0
             ? sites.filter((site) => membership.siteIds.includes(site._id))
             : sites;
-        return { membership, group, sites: visibleSites };
+        const logoUrl = group?.logoStorageId ? await ctx.storage.getUrl(group.logoStorageId) : group?.logoUrl;
+        return { membership, group: group ? { ...group, logoUrl: logoUrl ?? group.logoUrl } : group, sites: visibleSites };
       })
     );
 

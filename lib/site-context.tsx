@@ -30,10 +30,12 @@ interface Ctx {
   setActiveSiteId: (id: ActiveSiteId) => void;
   activeSiteName: string; // 'All sites' | site name
   tenantName: string;
+  logoUrl?: string;
   ownerName: string;
   filterByActiveSite: <T extends { site: string }>(items: T[]) => T[];
-  addSite: (s: { name: string; address?: string }) => Site;
-  updateSite: (id: string, patch: { name: string; address?: string }) => void;
+  addSite: (s: { name: string; address?: string; phone?: string }) => Site;
+  updateSite: (id: string, patch: { name: string; address?: string; phone?: string }) => void;
+  removeSite: (id: string) => void;
 }
 
 const SiteCtx = React.createContext<Ctx | null>(null);
@@ -80,12 +82,13 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addSite = React.useCallback(
-    (s: { name: string; address?: string }) => {
+    (s: { name: string; address?: string; phone?: string }) => {
       const site: Site = {
         id: `local-${Date.now()}`,
         name: s.name,
         covers: 0,
         address: s.address ?? "",
+        phone: s.phone,
       };
       setExtraSites((prev) => {
         const next = [...prev, site];
@@ -103,10 +106,10 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     [setActiveSiteId]
   );
 
-  const updateSite = React.useCallback((id: string, patch: { name: string; address?: string }) => {
+  const updateSite = React.useCallback((id: string, patch: { name: string; address?: string; phone?: string }) => {
     setExtraSites((prev) => {
       const next = prev.map((site) =>
-        site.id === id ? { ...site, name: patch.name, address: patch.address ?? "" } : site
+        site.id === id ? { ...site, name: patch.name, address: patch.address ?? "", phone: patch.phone } : site
       );
       try {
         window.localStorage.setItem(SITES_STORAGE_KEY, JSON.stringify(next));
@@ -123,7 +126,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
         ...stored,
         sites: stored.sites.map((site, index) =>
           site.id === id || site.name === id || index === onboardedIndex
-            ? { ...site, name: patch.name, address: patch.address }
+            ? { ...site, name: patch.name, address: patch.address, phone: patch.phone }
             : site
         ),
       };
@@ -137,13 +140,48 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
             ...prev,
             sites: prev.sites.map((site) =>
               site.id === id || site.name === id
-                ? { ...site, name: patch.name, address: patch.address }
+                ? { ...site, name: patch.name, address: patch.address, phone: patch.phone }
                 : site
             ),
           }
         : prev
     );
   }, []);
+
+  const removeSite = React.useCallback((id: string) => {
+    setExtraSites((prev) => {
+      const next = prev.filter((site) => site.id !== id);
+      try {
+        window.localStorage.setItem(SITES_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* no-op */
+      }
+      return next;
+    });
+
+    const stored = readTenantFromStorage();
+    if (stored) {
+      const nextTenant: StoredTenant = {
+        ...stored,
+        sites: stored.sites.filter((site, index) => {
+          const onboardedIndex = id.startsWith("onboarded-") ? Number(id.replace("onboarded-", "")) : -1;
+          return site.id !== id && site.name !== id && index !== onboardedIndex;
+        }),
+      };
+      setTenant(nextTenant);
+      writeTenantToStorage(nextTenant);
+    }
+
+    setBackendTenant((prev) =>
+      prev
+        ? {
+            ...prev,
+            sites: prev.sites.filter((site) => site.id !== id && site.name !== id),
+          }
+        : prev
+    );
+    if (activeSiteId === id) setActiveSiteId(null);
+  }, [activeSiteId, setActiveSiteId]);
 
   const effectiveTenant = backendTenant ?? tenant;
   const baseSites = React.useMemo(
@@ -152,6 +190,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   );
   const sites = React.useMemo(() => [...baseSites, ...extraSites], [baseSites, extraSites]);
   const tenantName = effectiveTenant?.groupName ?? (isConvexReady() ? "Your restaurant" : FORGE.group);
+  const logoUrl = effectiveTenant?.logoUrl;
   const ownerName = effectiveTenant?.ownerName ?? (isConvexReady() ? "Owner" : FORGE.owner);
   const activeSite = activeSiteId === null ? null : sites.find((s) => s.id === activeSiteId) ?? null;
   const isAllSites = activeSiteId === null;
@@ -179,10 +218,12 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
         setActiveSiteId,
         activeSiteName,
         tenantName,
+        logoUrl,
         ownerName,
         filterByActiveSite,
         addSite,
         updateSite,
+        removeSite,
       }}
     >
       {mounted && isConvexReady() && <BackendTenantBridge onTenant={setBackendTenant} />}
@@ -225,6 +266,7 @@ function BackendTenantBridge({ onTenant }: { onTenant: (tenant: StoredTenant | n
     }
     onTenant({
       groupName: tenant.group.name,
+      logoUrl: tenant.group.logoUrl,
       ownerName: tenant.group.ownerName ?? current.user.name ?? "Owner",
       ownerEmail: tenant.group.ownerEmail ?? current.user.email,
       timezone: tenant.group.timezone,
@@ -235,10 +277,13 @@ function BackendTenantBridge({ onTenant }: { onTenant: (tenant: StoredTenant | n
       sites: tenant.sites.map((site) => ({
         id: site._id,
         name: site.name,
+        phone: site.phone,
         address: site.address,
         city: site.city,
         postcode: site.postcode,
         coversToday: site.coversToday,
+        visitRewardVisits: site.visitRewardVisits,
+        visitRewardLabel: site.visitRewardLabel,
       })),
       createdAt: tenant.group.createdAt,
     });

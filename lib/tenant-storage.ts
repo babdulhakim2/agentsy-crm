@@ -6,14 +6,18 @@ export const TENANT_CHANGED_EVENT = "agentsy.tenantChanged";
 export interface StoredTenantSite {
   id?: string;
   name: string;
+  phone?: string;
   address?: string;
   city?: string;
   postcode?: string;
   coversToday?: number;
+  visitRewardVisits?: number;
+  visitRewardLabel?: string;
 }
 
 export interface StoredTenant {
   groupName: string;
+  logoUrl?: string;
   ownerName: string;
   ownerEmail?: string;
   timezone: string;
@@ -52,6 +56,9 @@ export function tenantSitesToAppSites(tenant: StoredTenant): Site[] {
     id: site.id ?? `onboarded-${index}`,
     name: site.name,
     covers: site.coversToday ?? (index === 0 ? 38 : 0),
+    phone: site.phone,
     address: [site.address, site.city, site.postcode].filter(Boolean).join(", "),
+    visitRewardVisits: site.visitRewardVisits,
+    visitRewardLabel: site.visitRewardLabel,
   }));
 }

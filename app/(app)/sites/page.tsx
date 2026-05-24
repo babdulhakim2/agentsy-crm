@@ -1,22 +1,111 @@
 "use client";
 
 import * as React from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Icon } from "@/components/icons";
 import { DesktopHeader } from "@/components/shell/DesktopHeader";
 import { AddBranchSheet, type BranchPayload } from "@/components/widgets/AddBranchSheet";
 import { useSite } from "@/lib/site-context";
+import { isConvexReady } from "@/lib/convex";
 import type { Site } from "@/lib/types";
 
 export default function SitesPage() {
-  const { sites: allSites, activeSite, isAllSites, activeSiteName, addSite, updateSite } = useSite();
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  if (mounted && isConvexReady()) return <BackendSitesPage />;
+  return <SitesPageContent mode="local" />;
+}
+
+function BackendSitesPage() {
+  const current = useQuery(api.users.current);
+  const createSite = useMutation(api.sites.createForCurrentUser);
+  const updateDetails = useMutation(api.sites.updateDetails);
+  const removeBackendSite = useMutation(api.sites.remove);
+  const tenant = current?.tenants.find((row) => row.group);
+  const groupId = tenant?.group?._id;
+
+  return (
+    <SitesPageContent
+      mode="backend"
+      onCreate={
+        groupId
+          ? (site) =>
+              createSite({
+                groupId,
+                name: site.name,
+                phone: site.phone,
+                address: site.address,
+                visitRewardVisits: 3,
+                visitRewardLabel: "20% off",
+              })
+          : undefined
+      }
+      onUpdate={(site, patch) =>
+        updateDetails({
+          siteId: site.id as Id<"sites">,
+          name: patch.name,
+          phone: patch.phone,
+          address: patch.address,
+          visitRewardVisits: site.visitRewardVisits,
+          visitRewardLabel: site.visitRewardLabel,
+        })
+      }
+      onDelete={(site) => removeBackendSite({ siteId: site.id as Id<"sites"> })}
+    />
+  );
+}
+
+function SitesPageContent({
+  mode,
+  onCreate,
+  onUpdate,
+  onDelete,
+}: {
+  mode: "local" | "backend";
+  onCreate?: (site: BranchPayload) => Promise<unknown>;
+  onUpdate?: (site: Site, patch: { name: string; address?: string; phone?: string }) => Promise<unknown>;
+  onDelete?: (site: Site) => Promise<unknown>;
+}) {
+  const { sites: allSites, activeSite, isAllSites, activeSiteName, addSite, updateSite, removeSite } = useSite();
   const [addOpen, setAddOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Site | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const handleAdd = (b: BranchPayload) => {
-    addSite({ name: b.name, address: b.address });
+  const handleAdd = async (b: BranchPayload) => {
+    setError(null);
+    try {
+      if (onCreate) await onCreate(b);
+      if (mode === "local" || !onCreate) addSite({ name: b.name, phone: b.phone, address: b.address });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add site.");
+    }
   };
-  const handleEdit = (site: Site, patch: { name: string; address?: string }) => {
+  const handleEdit = async (site: Site, patch: { name: string; address?: string; phone?: string }) => {
+    setError(null);
+    try {
+      if (onUpdate) await onUpdate(site, patch);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save site.");
+      return;
+    }
     updateSite(site.id, patch);
+  };
+  const handleDelete = async (site: Site) => {
+    setError(null);
+    if (deletingId !== site.id) {
+      setDeletingId(site.id);
+      return;
+    }
+    try {
+      if (onDelete) await onDelete(site);
+      removeSite(site.id);
+      setDeletingId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete site.");
+    }
   };
   const visibleSites = isAllSites ? allSites : activeSite ? [activeSite] : allSites;
 
@@ -33,6 +122,11 @@ export default function SitesPage() {
         }
       />
       <div className="desk-content">
+        {error && (
+          <div role="alert" className="chip chip-crimson" style={{ marginBottom: 14, whiteSpace: "normal" }}>
+            {error}
+          </div>
+        )}
         <div className="responsive-grid-3" style={{ marginBottom: 22 }}>
           {visibleSites.map((s) => (
             <div key={s.id} className="card" style={{ padding: 18 }}>
@@ -43,15 +137,31 @@ export default function SitesPage() {
                   <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2 }}>
                     {s.address || "No address saved"}
                   </div>
+                  {s.phone && (
+                    <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2 }}>
+                      {s.phone}
+                    </div>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  className="btn-soft"
-                  onClick={() => setEditing(s)}
-                  style={{ padding: "7px 10px", borderRadius: 8, fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }}
-                >
-                  <Icon.Edit s={13} /> Edit
-                </button>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button
+                    type="button"
+                    className="btn-soft"
+                    onClick={() => setEditing(s)}
+                    style={{ padding: "7px 10px", borderRadius: 8, fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }}
+                  >
+                    <Icon.Edit s={13} /> Edit
+                  </button>
+                  <button
+                    type="button"
+                    className={deletingId === s.id ? "btn btn-terracotta" : "icon-btn"}
+                    onClick={() => handleDelete(s)}
+                    style={{ width: deletingId === s.id ? "auto" : 32, height: 32, padding: deletingId === s.id ? "7px 10px" : 0, fontSize: 12 }}
+                    aria-label={deletingId === s.id ? `Confirm delete ${s.name}` : `Delete ${s.name}`}
+                  >
+                    {deletingId === s.id ? "Confirm" : <Icon.Trash s={14} />}
+                  </button>
+                </div>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginTop: 14 }}>
                 <div style={{ padding: 10, borderRadius: 8, background: "var(--paper-2)" }}>
@@ -59,8 +169,12 @@ export default function SitesPage() {
                   <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 3 }}>covers today</div>
                 </div>
                 <div style={{ padding: 10, borderRadius: 8, background: "var(--sage-tint)" }}>
-                  <div style={{ fontSize: 18, lineHeight: 1, fontFamily: "var(--serif)", color: "var(--sage)" }}>Open</div>
-                  <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 3 }}>site status</div>
+                  <div style={{ fontSize: 18, lineHeight: 1, fontFamily: "var(--serif)", color: "var(--sage)" }}>
+                    {s.visitRewardVisits ?? 3} visits
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 3 }}>
+                    unlock {s.visitRewardLabel ?? "20% off"}
+                  </div>
                 </div>
               </div>
             </div>
@@ -73,7 +187,7 @@ export default function SitesPage() {
         site={editing}
         onClose={() => setEditing(null)}
         onSave={(patch) => {
-          if (editing) handleEdit(editing, patch);
+          if (editing) void handleEdit(editing, patch);
           setEditing(null);
         }}
       />
@@ -88,14 +202,16 @@ function SiteSettingsSheet({
 }: {
   site: Site | null;
   onClose: () => void;
-  onSave: (patch: { name: string; address?: string }) => void;
+  onSave: (patch: { name: string; address?: string; phone?: string }) => void;
 }) {
   const [name, setName] = React.useState("");
+  const [phone, setPhone] = React.useState("");
   const [address, setAddress] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setName(site?.name ?? "");
+    setPhone(site?.phone ?? "");
     setAddress(site?.address ?? "");
     setError(null);
   }, [site]);
@@ -106,7 +222,7 @@ function SiteSettingsSheet({
       setError("Site name is required.");
       return;
     }
-    onSave({ name: name.trim(), address: address.trim() || undefined });
+    onSave({ name: name.trim(), phone: phone.trim() || undefined, address: address.trim() || undefined });
   };
 
   if (!site) return null;
@@ -145,6 +261,17 @@ function SiteSettingsSheet({
             className="big-input"
             value={name}
             onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="field" style={{ marginBottom: 12 }}>
+          <label htmlFor="site-edit-phone">Site phone</label>
+          <input
+            id="site-edit-phone"
+            className="input"
+            placeholder="+44 20 7946 0000"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            inputMode="tel"
           />
         </div>
         <div className="field" style={{ marginBottom: 12 }}>

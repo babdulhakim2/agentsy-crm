@@ -4,9 +4,7 @@
 "use client";
 
 import * as React from "react";
-import { FORGE } from "@/lib/data";
-import { isConvexReady } from "@/lib/convex";
-import { readTenantFromStorage, TENANT_CHANGED_EVENT } from "@/lib/tenant-storage";
+import { useSite } from "@/lib/site-context";
 
 interface Props {
   size?: number;
@@ -14,45 +12,26 @@ interface Props {
   symbolOnly?: boolean;
 }
 
-const LOGO_SRC = "/logo.png";
-
 function useTenantBrand() {
-  const [brand, setBrand] = React.useState({
-    group: isConvexReady() ? "Your restaurant" : FORGE.group,
-    site: isConvexReady() ? "Main site" : FORGE.sites[0]?.name ?? "—",
-  });
-
-  React.useEffect(() => {
-    const sync = () => {
-      const tenant = readTenantFromStorage();
-      setBrand({
-        group: tenant?.groupName ?? (isConvexReady() ? "Your restaurant" : FORGE.group),
-        site: tenant?.sites[0]?.name ?? (isConvexReady() ? "Main site" : FORGE.sites[0]?.name ?? "—"),
-      });
-    };
-    sync();
-    window.addEventListener(TENANT_CHANGED_EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(TENANT_CHANGED_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
-
-  return brand;
+  const { tenantName, activeSiteName, sites, logoUrl } = useSite();
+  return {
+    group: tenantName,
+    site: activeSiteName === "All sites" ? sites[0]?.name ?? "Main site" : activeSiteName,
+    logoUrl,
+  };
 }
 
 /**
- * The restaurant logo, served from /public/logo.png.
- * Falls back to a terracotta tile with the first letter if the asset
- * is missing — keeps the demo robust during onboarding.
+ * Restaurant logo from tenant settings. Falls back to a terracotta tile with
+ * the first letter so the app never depends on a hardcoded brand asset.
  */
 export function RestaurantSymbol({ size = 32 }: { size?: number }) {
   const [failed, setFailed] = React.useState(false);
-  const { group } = useTenantBrand();
+  const { group, logoUrl } = useTenantBrand();
   const letter = group.replace(/^the\s+/i, "").charAt(0).toUpperCase();
+  React.useEffect(() => setFailed(false), [logoUrl]);
 
-  if (failed) {
+  if (!logoUrl || failed) {
     return (
       <div
         aria-hidden
@@ -79,7 +58,7 @@ export function RestaurantSymbol({ size = 32 }: { size?: number }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={LOGO_SRC}
+      src={logoUrl}
       alt={group}
       onError={() => setFailed(true)}
       style={{

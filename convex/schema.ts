@@ -29,6 +29,8 @@ export default defineSchema({
 
   groups: defineTable({
     name: v.string(),
+    logoStorageId: v.optional(v.id("_storage")),
+    logoUrl: v.optional(v.string()),
     timezone: v.string(),
     primaryPhone: v.optional(v.string()),
     ownerName: v.optional(v.string()),
@@ -48,12 +50,15 @@ export default defineSchema({
   sites: defineTable({
     groupId: v.id("groups"),
     name: v.string(),
+    phone: v.optional(v.string()),
     address: v.optional(v.string()),
     city: v.optional(v.string()),
     postcode: v.optional(v.string()),
     coversToday: v.optional(v.number()),
     googlePlaceId: v.optional(v.string()),
     gbpLocationId: v.optional(v.string()), // Google Business Profile location resource ID
+    visitRewardVisits: v.optional(v.number()),
+    visitRewardLabel: v.optional(v.string()),
     status: v.optional(v.string()), // 'pending' | 'active' | 'paused'
     createdAt: v.optional(v.number()),
   }).index("by_group", ["groupId"]),

@@ -693,7 +693,7 @@ a { color: inherit; text-decoration: none; }
 /* Utility paddings/grids used across desktop screens */
 .desk-content {
   flex: 1;
-  padding: 0 32px 32px;
+  padding: 24px 32px 32px;
   overflow-y: auto;
 }
 .desk-header {
@@ -705,8 +705,33 @@ a { color: inherit; text-decoration: none; }
   flex-wrap: wrap;
 }
 @media (max-width: 768px) {
-  .desk-content { padding: 0 16px 24px; }
+  .desk-content { padding: 18px 16px 24px; }
   .desk-header { padding: 18px 16px 16px; gap: 12px; }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .qr-print-card,
+  .qr-print-card * {
+    visibility: visible;
+  }
+
+  .qr-print-card {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    box-shadow: none;
+    border: 0;
+  }
+
+  .qr-print-hide,
+  .shell-sidebar,
+  .desk-header {
+    display: none !important;
+  }
 }
 
 /* Make grid layouts collapse cleanly on small screens */

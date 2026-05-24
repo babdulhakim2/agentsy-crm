@@ -350,6 +350,8 @@ export const publicQrVisit = mutation({
     rating: v.optional(v.number()),
     feedback: v.optional(v.string()),
     consentWhatsapp: v.optional(v.boolean()),
+    birthMonth: v.optional(v.number()),
+    birthDay: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const phone = normalizePhone(args.phone);
@@ -381,6 +383,8 @@ export const publicQrVisit = mutation({
         spendCents: 0,
         source: "qr",
         pipelineStage: "lead",
+        birthMonth: args.birthMonth,
+        birthDay: args.birthMonth ? args.birthDay : undefined,
         createdAt: now,
       }));
 
@@ -390,6 +394,9 @@ export const publicQrVisit = mutation({
     const feedback = cleanOptional(args.feedback);
     const ratingText = args.rating ? `Rating: ${args.rating}/5` : undefined;
     const notes = [ratingText, feedback].filter(Boolean).join(" · ") || undefined;
+    const site = await ctx.db.get(args.siteId);
+    const visitsRequired = Math.max(1, Math.round(site?.visitRewardVisits ?? 3));
+    const rewardLabel = cleanOptional(site?.visitRewardLabel)?.slice(0, 80) ?? "20% off";
 
     const visitId = await ctx.db.insert("visits", {
       groupId: args.groupId,
@@ -425,14 +432,21 @@ export const publicQrVisit = mutation({
       visitCount: nextVisitCount,
       spendCents: customer.spendCents,
       pipelineStage: nextStage,
+      birthMonth: args.birthMonth ?? customer.birthMonth,
+      birthDay: args.birthMonth ? args.birthDay : customer.birthDay,
     });
 
     return {
       customerId,
       visitId,
       visitCount: nextVisitCount,
-      rewardUnlocked: nextVisitCount % 3 === 0,
-      visitsUntilReward: nextVisitCount % 3 === 0 ? 0 : 3 - (nextVisitCount % 3),
+      rewardUnlocked: nextVisitCount % visitsRequired === 0,
+      visitsUntilReward:
+        nextVisitCount % visitsRequired === 0
+          ? 0
+          : visitsRequired - (nextVisitCount % visitsRequired),
+      visitsRequired,
+      rewardLabel,
     };
   },
 });

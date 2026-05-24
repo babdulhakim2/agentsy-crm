@@ -10,6 +10,9 @@ export interface Site {
   name: string;
   covers: number;
   address: string;
+  phone?: string;
+  visitRewardVisits?: number;
+  visitRewardLabel?: string;
 }
 
 export interface Review {

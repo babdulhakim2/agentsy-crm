@@ -9,6 +9,8 @@ interface Body {
   rating?: number;
   feedback?: string;
   consentWhatsapp?: boolean;
+  birthMonth?: number;
+  birthDay?: number;
 }
 
 export async function POST(req: NextRequest) {
@@ -31,6 +33,8 @@ export async function POST(req: NextRequest) {
       visitCount: 1,
       rewardUnlocked: false,
       visitsUntilReward: 2,
+      visitsRequired: 3,
+      rewardLabel: "20% off",
     });
   }
 
@@ -47,6 +51,8 @@ export async function POST(req: NextRequest) {
       rating: body.rating,
       feedback: body.feedback,
       consentWhatsapp: body.consentWhatsapp ?? true,
+      birthMonth: body.birthMonth,
+      birthDay: body.birthDay,
     } as Parameters<typeof client.mutation>[1]);
     return NextResponse.json({ ok: true, mode: "convex", ...result });
   } catch (err) {
@@ -59,6 +65,8 @@ export async function POST(req: NextRequest) {
         visitCount: 1,
         rewardUnlocked: false,
         visitsUntilReward: 2,
+        visitsRequired: 3,
+        rewardLabel: "20% off",
       });
     }
     return NextResponse.json(
