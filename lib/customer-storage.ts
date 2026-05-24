@@ -1,6 +1,7 @@
 "use client";
 
 import type { Customer } from "./types";
+import { phoneIdentityKey } from "./phone";
 
 const LOCAL_CUSTOMERS_KEY = "agentsy.localCustomers";
 const DELETED_CUSTOMERS_KEY = "agentsy.deletedCustomers";
@@ -62,11 +63,7 @@ export function isCustomerDeleted(customer: Customer): boolean {
 }
 
 export function customerPhoneKey(phone?: string): string {
-  const digits = phone?.replace(/\D/g, "") ?? "";
-  if (!digits) return "";
-  if (digits.startsWith("44")) return digits;
-  if (digits.startsWith("0")) return `44${digits.slice(1)}`;
-  return digits;
+  return phoneIdentityKey(phone);
 }
 
 function readDeletedCustomerKeys(): string[] {

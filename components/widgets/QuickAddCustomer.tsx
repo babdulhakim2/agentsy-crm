@@ -7,6 +7,7 @@
 import * as React from "react";
 import { Icon } from "../icons";
 import { SOURCES } from "@/lib/pipeline";
+import { normalizePhoneNumber } from "@/lib/phone";
 import type { CustomerSource } from "@/lib/types";
 
 export interface QuickAddPayload {
@@ -17,6 +18,8 @@ export interface QuickAddPayload {
   tags?: string[];
   /** Optional email for receipts, newsletters, future re-engagement. */
   email?: string;
+  /** Optional delivery/customer address. */
+  address?: string;
   /** Optional birth month (1-12). Captured for birthday-treat campaigns. */
   birthMonth?: number;
   /** Optional birthday day (1-31). */
@@ -92,6 +95,7 @@ export function QuickAddCustomer({
   const [phone, setPhone] = React.useState("");
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
+  const [address, setAddress] = React.useState("");
   const [showMoreDetails, setShowMoreDetails] = React.useState(false);
   const [consent, setConsent] = React.useState(true);
   const [birthMonth, setBirthMonth] = React.useState<number | null>(null);
@@ -111,6 +115,7 @@ export function QuickAddCustomer({
       setPhone("");
       setName("");
       setEmail("");
+      setAddress("");
       setShowMoreDetails(false);
       setConsent(true);
       setBirthMonth(null);
@@ -155,10 +160,12 @@ export function QuickAddCustomer({
       source,
       tags: defaultTags,
       email: email.trim() || undefined,
+      address: address.trim() || undefined,
       birthMonth: birthMonth ?? undefined,
       birthDay: birthMonth ? parsedBirthDay : undefined,
       customerSource: customerSource ?? undefined,
     };
+    payload.phone = normalizePhoneNumber(payload.phone) || payload.phone;
     try {
       const result = await postToBackend(payload, backendGroupId);
       if (!result.ok && result.error) {
@@ -343,7 +350,7 @@ export function QuickAddCustomer({
                 <Icon.ChevronDown s={14} c="var(--ink-3)" />
                 <span style={{ flex: 1 }}>More details</span>
                 <span style={{ fontSize: 11.5, color: "var(--ink-4)" }}>
-                  Email, birthday, source
+                  Email, address, birthday, source
                 </span>
               </button>
               {showMoreDetails && (
@@ -372,6 +379,24 @@ export function QuickAddCustomer({
                       placeholder="name@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="field" style={{ marginBottom: 12 }}>
+                    <label
+                      htmlFor="qa-address"
+                      style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}
+                    >
+                      Delivery address
+                    </label>
+                    <textarea
+                      id="qa-address"
+                      className="textarea"
+                      autoComplete="street-address"
+                      placeholder="Optional, useful for delivery customers"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      style={{ minHeight: 72 }}
                     />
                   </div>
 
@@ -442,11 +467,12 @@ export function QuickAddCustomer({
                     </div>
                   </div>
 
-                  {(email || birthMonth || customerSource) && (
+                  {(email || address || birthMonth || customerSource) && (
                     <button
                       type="button"
                       onClick={() => {
                         setEmail("");
+                        setAddress("");
                         setBirthMonth(null);
                         setBirthDay("");
                         setCustomerSource(null);

@@ -67,6 +67,7 @@ export type CustomerSource =
   | "referral"
   | "instagram"
   | "google"
+  | "delivery"
   | "whatsapp"
   | "event"
   | "other";
@@ -91,6 +92,13 @@ export interface Customer {
   birthMonth?: number;
   /** Specific day of month if known (1-31). Optional, used to flag "birthday this week". */
   birthDay?: number;
+  notes?: string;
+  company?: string;
+  address?: string;
+  role?: string;
+  location?: string;
+  firstContactAt?: number;
+  sourceDate?: string;
 }
 
 export interface TonightBooking {

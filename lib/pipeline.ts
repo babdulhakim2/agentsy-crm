@@ -36,6 +36,7 @@ export const SOURCES: SourceMeta[] = [
   { id: "referral", label: "Referral" },
   { id: "instagram", label: "Instagram" },
   { id: "google", label: "Google search" },
+  { id: "delivery", label: "Delivery lead" },
   { id: "whatsapp", label: "WhatsApp" },
   { id: "event", label: "Event / collab" },
   { id: "other", label: "Other" },

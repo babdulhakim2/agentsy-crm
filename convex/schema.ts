@@ -110,7 +110,7 @@ export default defineSchema({
     pipelineStage: v.optional(v.string()),
     /** True when owner manually set the stage — cron leaves it alone. */
     pipelineStageManual: v.optional(v.boolean()),
-    /** 'walk-in' | 'qr' | 'outreach' | 'booking' | 'referral' | 'instagram' | 'google' | 'whatsapp' | 'event' | 'other' */
+    /** 'walk-in' | 'qr' | 'outreach' | 'booking' | 'referral' | 'instagram' | 'google' | 'delivery' | 'whatsapp' | 'event' | 'other' */
     source: v.optional(v.string()),
     /** Birth month (1-12), used for birthday campaigns. */
     birthMonth: v.optional(v.number()),
@@ -118,6 +118,24 @@ export default defineSchema({
     birthDay: v.optional(v.number()),
     /** Site the customer most often visits — purely a hint for filtering UI. */
     primarySiteId: v.optional(v.id("sites")),
+    /** Freeform operator notes imported or added to the customer profile. */
+    notes: v.optional(v.string()),
+    /** Optional business/customer organization label for B2B or community leads. */
+    company: v.optional(v.string()),
+    /** Optional address captured during outreach/import. */
+    address: v.optional(v.string()),
+    /** Optional context such as group, role, or community relationship. */
+    role: v.optional(v.string()),
+    /** Optional location hint captured during outreach/import. */
+    location: v.optional(v.string()),
+    /** Date this lead/customer was first captured, when known. */
+    firstContactAt: v.optional(v.number()),
+    /** Original source date string from a manual import. */
+    sourceDate: v.optional(v.string()),
+    /** Last time this customer was touched by an import. */
+    importedAt: v.optional(v.number()),
+    /** Import batch/source label, e.g. "manual_seed". */
+    importSource: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_group_phone", ["groupId", "phone"])

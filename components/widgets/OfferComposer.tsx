@@ -26,6 +26,9 @@ const OFFERS: { id: string; label: string; voucher: string }[] = [
 function buildDraft(customer: Customer, offer: typeof OFFERS[number]): string {
   const first = customer.name.split(" ")[0];
   if (customer.visits === 0 || stageForCustomer(customer) === "lead") {
+    if (customer.source === "delivery" || customer.address) {
+      return `Hi ${first}, thanks for joining our customer list. Next time you order delivery or come by, show this message and we'll sort ${offer.voucher}.`;
+    }
     return `Hi ${first}, lovely to meet you. If you fancy trying us, show this message next time you come in and we'll sort ${offer.voucher}.`;
   }
   return `${first} — quick one. We've missed you and want to say so. Next time you're in, ${offer.voucher} on the house. Just show this message at the till.`;

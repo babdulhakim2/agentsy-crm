@@ -9,6 +9,7 @@ interface Body {
   email?: string;
   tags?: string[];
   customerSource?: string;
+  address?: string;
   birthMonth?: number;
   birthDay?: number;
   pipelineStage?: string;
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
       email: body.email,
       tags: body.tags,
       customerSource: body.customerSource,
+      address: body.address,
       birthMonth: body.birthMonth,
       birthDay: body.birthDay,
       pipelineStage: body.pipelineStage,

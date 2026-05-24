@@ -107,6 +107,7 @@ export default function CustomersPage() {
       birthMonth: p.birthMonth,
       birthDay: p.birthDay,
       source: p.customerSource,
+      address: p.address,
     };
     setExtras(prependLocalCustomer(customer));
     setSelectedId(id);
@@ -359,9 +360,6 @@ export default function CustomersPage() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
                   <span className={stageMeta.chip}>{stageMeta.label}</span>
-                  <span style={{ fontSize: 11, color: "var(--ink-3)", maxWidth: 104, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {c.tag}
-                  </span>
                 </div>
               </button>
             );
@@ -529,6 +527,7 @@ async function updateBackendCustomer(customer: Customer) {
       email: customer.email,
       tags: customer.tag ? [customer.tag] : [],
       customerSource: customer.source,
+      address: customer.address,
       birthMonth: customer.birthMonth,
       birthDay: customer.birthDay,
       pipelineStage: customer.pipelineStage,

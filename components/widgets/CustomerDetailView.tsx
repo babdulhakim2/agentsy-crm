@@ -8,6 +8,7 @@ import type { Customer, CustomerSource, PipelineStage } from "@/lib/types";
 import { nextActionForCustomer, SOURCES, STAGES, STAGE_BY_ID, SOURCE_LABEL } from "@/lib/pipeline";
 import { isConvexReady } from "@/lib/convex";
 import { useSite } from "@/lib/site-context";
+import { normalizePhoneNumber } from "@/lib/phone";
 
 const VISIT_HISTORY = [
   { d: "18 Feb", site: "Islington", party: 2, spend: "£72", notes: '"Great visit" — Jess', svr: "Anya" },
@@ -51,14 +52,6 @@ function deriveInsights(g: Customer): string[] {
     const avg = Math.round(g.spend / g.visits);
     out.push(`Top-decile loyalty — ${g.visits} visits with an average spend of £${avg} per cover.`);
   }
-  if (g.tag.toLowerCase().includes("wine") || g.tag.toLowerCase().includes("spice")) {
-    out.push(
-      `Pattern: orders ${g.tag.toLowerCase()} on most visits. Try inviting them to next chef's tasting.`
-    );
-  }
-  if (g.tag.toLowerCase().includes("vip")) {
-    out.push(`Tagged VIP. Reserve corner table and brief the kitchen on dietary preferences.`);
-  }
   if (g.birthMonth) {
     const m = MONTH_NAMES[g.birthMonth - 1];
     out.push(
@@ -86,6 +79,14 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
   const [insights, setInsights] = React.useState<string[]>(() => deriveInsights(g));
   const [insightMode, setInsightMode] = React.useState<"loading" | "llm" | "fallback">("fallback");
   const stageMeta = stage ? STAGE_BY_ID[stage] : undefined;
+  const contactContext = [
+    ["Notes", g.notes],
+    ["Company", g.company],
+    ["Role", g.role],
+    ["Location", g.location],
+    ["Address", g.address],
+    ["First contact", g.sourceDate],
+  ].filter((row): row is [string, string] => Boolean(row[1]));
 
   React.useEffect(() => {
     setStage(g.pipelineStage);
@@ -350,10 +351,6 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
             <span style={{ color: "var(--ink-3)" }}>Preferred site</span>
             <span style={{ fontWeight: 600 }}>{g.site}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 14 }}>
-            <span style={{ color: "var(--ink-3)" }}>Tag</span>
-            <span style={{ fontWeight: 600 }}>{g.tag}</span>
-          </div>
         </div>
       </div>
 
@@ -416,31 +413,29 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
         ))}
       </div>
 
-      <div
-        className="card"
-        style={{
-          marginTop: 14,
-          padding: 14,
-          background: "var(--amber-tint)",
-          borderColor: "rgba(184,133,50,0.3)",
-        }}
-      >
-        <div className="eyebrow" style={{ color: "var(--amber)", marginBottom: 4 }}>
-          Dietary · pinned
+      {contactContext.length > 0 && (
+        <div
+          className="card"
+          style={{
+            marginTop: 14,
+            padding: 14,
+            background: "var(--amber-tint)",
+            borderColor: "rgba(184,133,50,0.3)",
+          }}
+        >
+          <div className="eyebrow" style={{ color: "var(--amber)", marginBottom: 8 }}>
+            Contact context
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {contactContext.map(([label, value]) => (
+              <div key={label} style={{ display: "grid", gridTemplateColumns: "92px minmax(0, 1fr)", gap: 10 }}>
+                <span style={{ color: "var(--ink-3)", fontSize: 12.5 }}>{label}</span>
+                <span style={{ fontSize: 13.5, lineHeight: 1.45 }}>{value}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ fontSize: 14.5, fontFamily: "var(--serif)" }}>
-          No known allergies. Strong wine preferences.
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 6, marginTop: 14, flexWrap: "wrap" }}>
-        <span className="chip chip-terra">{g.tag}</span>
-        <span className="chip">Côte de boeuf · 3x</span>
-        <span className="chip">Reduces noise</span>
-        <button className="chip chip-ghost" style={{ border: "1px dashed var(--rule-2)" }}>
-          <Icon.Plus s={11} /> Tag
-        </button>
-      </div>
+      )}
 
       <div style={{ marginTop: 22 }}>
         <div className="eyebrow" style={{ marginBottom: 10 }}>
@@ -650,7 +645,7 @@ function EditCustomerSheet({
   const [phone, setPhone] = React.useState(customer.phone ?? "");
   const [name, setName] = React.useState(customer.name);
   const [email, setEmail] = React.useState(customer.email ?? "");
-  const [tag, setTag] = React.useState(customer.tag);
+  const [address, setAddress] = React.useState(customer.address ?? "");
   const [birthMonth, setBirthMonth] = React.useState<number | null>(customer.birthMonth ?? null);
   const [birthDay, setBirthDay] = React.useState(customer.birthDay ? String(customer.birthDay) : "");
   const [customerSource, setCustomerSource] = React.useState<CustomerSource | undefined>(customer.source);
@@ -663,7 +658,7 @@ function EditCustomerSheet({
     setPhone(customer.phone ?? "");
     setName(customer.name);
     setEmail(customer.email ?? "");
-    setTag(customer.tag);
+    setAddress(customer.address ?? "");
     setBirthMonth(customer.birthMonth ?? null);
     setBirthDay(customer.birthDay ? String(customer.birthDay) : "");
     setCustomerSource(customer.source);
@@ -701,9 +696,10 @@ function EditCustomerSheet({
         ...customer,
         initial: name.trim()[0]?.toUpperCase() ?? "?",
         name: name.trim(),
-        phone: phone.trim() || undefined,
+        phone: normalizePhoneNumber(phone) || phone.trim() || undefined,
         email: email.trim() || undefined,
-        tag: tag.trim() || "Regular",
+        address: address.trim() || undefined,
+        tag: customer.tag,
         birthMonth: month,
         birthDay: month ? day : undefined,
         source: customerSource,
@@ -780,19 +776,6 @@ function EditCustomerSheet({
           />
         </div>
 
-        <div className="field" style={{ marginBottom: 12 }}>
-          <label htmlFor="edit-tag" style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}>
-            Tag
-          </label>
-          <input
-            id="edit-tag"
-            className="input"
-            placeholder="VIP, birthday treat, spice fan"
-            value={tag}
-            onChange={(e) => setTag(e.target.value)}
-          />
-        </div>
-
         <div style={{ marginBottom: 14 }}>
           <button
             type="button"
@@ -816,7 +799,7 @@ function EditCustomerSheet({
             <Icon.ChevronDown s={14} c="var(--ink-3)" />
             <span style={{ flex: 1 }}>Details</span>
             <span style={{ fontSize: 11.5, color: "var(--ink-4)" }}>
-              Email, birthday, source
+              Email, address, birthday, source
             </span>
           </button>
           {showMoreDetails && (
@@ -842,6 +825,21 @@ function EditCustomerSheet({
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="field" style={{ marginBottom: 12 }}>
+                <label htmlFor="edit-address" style={{ fontSize: 12, color: "var(--ink-3)", marginBottom: 6 }}>
+                  Delivery address
+                </label>
+                <textarea
+                  id="edit-address"
+                  className="textarea"
+                  autoComplete="street-address"
+                  placeholder="Optional, useful for delivery customers"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  style={{ minHeight: 72 }}
                 />
               </div>
 
@@ -909,11 +907,12 @@ function EditCustomerSheet({
                 </div>
               </div>
 
-              {(email || birthMonth || customerSource) && (
+              {(email || address || birthMonth || customerSource) && (
                 <button
                   type="button"
                   onClick={() => {
                     setEmail("");
+                    setAddress("");
                     setBirthMonth(null);
                     setBirthDay("");
                     setCustomerSource(undefined);

@@ -32,16 +32,40 @@ export default function SettingsPage() {
           <LocalBrandingSettingsCard tenantName={tenantName} logoUrl={logoUrl} />
         )}
 
-        {mounted && isConvexReady() ? (
-          <VisitQrCard
-            activeSiteId={activeSite?.id}
-            activeSiteName={activeSiteName}
-            restaurantName={tenantName}
-            logoUrl={logoUrl}
-          />
-        ) : (
-          <LocalVisitQrCard activeSiteName={activeSiteName} restaurantName={tenantName} logoUrl={logoUrl} />
-        )}
+        <section style={{ marginBottom: 14 }}>
+          <div style={{ margin: "4px 0 12px" }}>
+            <div className="eyebrow" style={{ marginBottom: 7 }}>
+              Customer loyalty
+            </div>
+            <div style={{ fontFamily: "var(--serif)", fontSize: 24, lineHeight: 1.12 }}>
+              QR codes for loyalty visits and new leads.
+            </div>
+            <div style={{ fontSize: 13.5, color: "var(--ink-3)", lineHeight: 1.45, marginTop: 6, maxWidth: 620 }}>
+              Put the visit QR at the counter. Use the lead QR on flyers, delivery bags and outreach so new customers enter the CRM before their first visit.
+            </div>
+          </div>
+          {mounted && isConvexReady() ? (
+            <>
+              <VisitQrCard
+                activeSiteId={activeSite?.id}
+                activeSiteName={activeSiteName}
+                restaurantName={tenantName}
+                logoUrl={logoUrl}
+              />
+              <LeadQrCard
+                activeSiteId={activeSite?.id}
+                activeSiteName={activeSiteName}
+                restaurantName={tenantName}
+                logoUrl={logoUrl}
+              />
+            </>
+          ) : (
+            <>
+              <LocalVisitQrCard activeSiteName={activeSiteName} restaurantName={tenantName} logoUrl={logoUrl} />
+              <LocalLeadQrCard activeSiteName={activeSiteName} restaurantName={tenantName} logoUrl={logoUrl} />
+            </>
+          )}
+        </section>
 
         <div className="card" style={{ padding: 22, marginBottom: 14 }}>
           <div className="eyebrow" style={{ marginBottom: 10 }}>
@@ -522,6 +546,97 @@ function LocalVisitQrCard({
   );
 }
 
+function LeadQrCard({
+  activeSiteId,
+  activeSiteName,
+  restaurantName,
+  logoUrl,
+}: {
+  activeSiteId?: string;
+  activeSiteName: string;
+  restaurantName: string;
+  logoUrl?: string;
+}) {
+  const current = useQuery(api.users.current);
+  const [origin, setOrigin] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const tenant = current?.tenants.find((row) => row.group);
+  const groupId = tenant?.group?._id;
+  const site =
+    tenant?.sites.find((item) => item._id === activeSiteId) ??
+    tenant?.sites[0];
+  const siteName = site?.name ?? (activeSiteName === "All sites" ? "Main site" : activeSiteName);
+  const leadUrl =
+    origin && groupId && site?._id
+      ? `${origin}/lead?groupId=${encodeURIComponent(groupId)}&siteId=${encodeURIComponent(site._id)}&site=${encodeURIComponent(siteName)}`
+      : `${origin || ""}/lead?site=${encodeURIComponent(siteName)}`;
+
+  return (
+    <LeadQrDisplayCard
+      restaurantName={tenant?.group?.name ?? restaurantName}
+      logoUrl={tenant?.group?.logoUrl ?? logoUrl}
+      siteName={siteName}
+      leadUrl={leadUrl}
+      copied={copied}
+      mode={groupId && site?._id ? "Creates CRM leads" : "Demo link until setup finishes"}
+      onCopy={async () => {
+        await navigator.clipboard.writeText(leadUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      }}
+    />
+  );
+}
+
+function LocalLeadQrCard({
+  activeSiteName,
+  restaurantName,
+  logoUrl,
+}: {
+  activeSiteName: string;
+  restaurantName: string;
+  logoUrl?: string;
+}) {
+  const [origin, setOrigin] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
+
+  const siteName = activeSiteName === "All sites" ? "Main site" : activeSiteName;
+  const leadUrl = `${origin || ""}/lead?site=${encodeURIComponent(siteName)}`;
+
+  return (
+    <LeadQrDisplayCard
+      restaurantName={restaurantName}
+      logoUrl={logoUrl}
+      siteName={siteName}
+      leadUrl={leadUrl}
+      copied={copied}
+      mode="Demo link until Convex is configured"
+      onCopy={async () => {
+        await navigator.clipboard.writeText(leadUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1200);
+      }}
+    />
+  );
+}
+
+function printQrCard(key: "visit" | "lead") {
+  document.body.dataset.printQr = key;
+  window.print();
+  window.setTimeout(() => {
+    if (document.body.dataset.printQr === key) delete document.body.dataset.printQr;
+  }, 500);
+}
+
 function QrCard({
   title,
   restaurantName,
@@ -573,7 +688,7 @@ function QrCard({
   };
 
   return (
-    <div className="card qr-print-card" style={{ padding: 22, marginBottom: 14 }}>
+    <div className="card qr-print-card" data-print-key="visit" style={{ padding: 22, marginBottom: 14 }}>
       <div style={{ display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
         <div
           style={{
@@ -633,7 +748,7 @@ function QrCard({
             <button type="button" className="btn btn-terracotta" onClick={onCopy} style={{ padding: "9px 12px", fontSize: 13 }}>
               {copied ? "Copied" : "Copy link"}
             </button>
-            <button type="button" className="btn btn-ghost" onClick={() => window.print()} style={{ padding: "9px 12px", fontSize: 13 }}>
+            <button type="button" className="btn btn-ghost" onClick={() => printQrCard("visit")} style={{ padding: "9px 12px", fontSize: 13 }}>
               Print QR
             </button>
           </div>
@@ -688,6 +803,88 @@ function QrCard({
           {rewardMessage}
         </div>
       )}
+    </div>
+  );
+}
+
+function LeadQrDisplayCard({
+  restaurantName,
+  logoUrl,
+  siteName,
+  leadUrl,
+  copied,
+  onCopy,
+  mode,
+}: {
+  restaurantName: string;
+  logoUrl?: string;
+  siteName: string;
+  leadUrl: string;
+  copied: boolean;
+  onCopy: () => void | Promise<void>;
+  mode: string;
+}) {
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=12&data=${encodeURIComponent(leadUrl)}`;
+
+  return (
+    <div className="card qr-print-card" data-print-key="lead" style={{ padding: 18, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div
+          style={{
+            width: 178,
+            height: 178,
+            borderRadius: 12,
+            background: "#fff",
+            border: "1px solid var(--rule)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 9,
+          }}
+        >
+          {leadUrl ? (
+            <img src={qrUrl} alt={`${siteName} lead QR code`} width={160} height={160} />
+          ) : (
+            <div className="serif-i" style={{ color: "var(--ink-3)" }}>QR loading</div>
+          )}
+        </div>
+        <div style={{ flex: "1 1 280px", minWidth: 0 }}>
+          <div className="eyebrow qr-print-hide" style={{ marginBottom: 8 }}>
+            Lead capture QR
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <BrandPreview name={restaurantName} logoUrl={logoUrl} size={54} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{restaurantName}</div>
+              <div style={{ fontSize: 12, color: "var(--ink-3)" }}>{siteName}</div>
+            </div>
+          </div>
+          <div style={{ fontFamily: "var(--serif)", fontSize: 22, lineHeight: 1.12 }}>
+            Join our customer loyalty list.
+          </div>
+          <div className="qr-print-hide" style={{ fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.5, marginTop: 8 }}>
+            Use this on delivery bags, flyers and cold outreach. It captures name, WhatsApp, optional delivery address and where the lead came from.
+          </div>
+          <div className="qr-print-only" style={{ fontSize: 18, color: "var(--ink)", lineHeight: 1.45, marginTop: 10, fontFamily: "var(--serif)" }}>
+            Scan to get personal offers, delivery updates and birthday treats.
+          </div>
+          <div className="qr-print-hide" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <span className="chip">{siteName}</span>
+            <span className="chip">{mode}</span>
+          </div>
+          <div className="qr-print-hide" style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <a className="btn btn-ghost" href={leadUrl} target="_blank" rel="noreferrer" style={{ padding: "9px 12px", fontSize: 13 }}>
+              Open form
+            </a>
+            <button type="button" className="btn btn-terracotta" onClick={onCopy} style={{ padding: "9px 12px", fontSize: 13 }}>
+              {copied ? "Copied" : "Copy link"}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => printQrCard("lead")} style={{ padding: "9px 12px", fontSize: 13 }}>
+              Print QR
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

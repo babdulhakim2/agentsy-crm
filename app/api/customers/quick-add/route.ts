@@ -14,6 +14,7 @@ interface Body {
   source: "host_stand" | "qr" | "manual" | "booking_widget";
   tags?: string[];
   email?: string;
+  address?: string;
   birthMonth?: number;
   birthDay?: number;
   customerSource?: string;
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
       source: body.source,
       tags: body.tags ?? [],
       email: body.email,
+      address: body.address,
     };
     try {
       const result = await client.mutation(api.customers.quickAdd, {
@@ -66,8 +68,9 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       if (!isLegacyCustomerValidatorError(msg)) throw err;
+      const { address: _address, ...legacyBaseArgs } = baseArgs;
       const result = await client.mutation(api.customers.quickAdd, {
-        ...baseArgs,
+        ...legacyBaseArgs,
       } as Parameters<typeof client.mutation>[1]);
       return NextResponse.json({ ok: true, result, legacyCustomerSchema: true });
     }
@@ -83,6 +86,9 @@ export async function POST(req: NextRequest) {
 function isLegacyCustomerValidatorError(message: string): boolean {
   return (
     message.includes("ArgumentValidationError") &&
-    (message.includes("customerSource") || message.includes("birthMonth") || message.includes("birthDay"))
+    (message.includes("customerSource") ||
+      message.includes("birthMonth") ||
+      message.includes("birthDay") ||
+      message.includes("address"))
   );
 }

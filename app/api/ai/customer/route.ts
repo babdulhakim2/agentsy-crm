@@ -163,6 +163,12 @@ function customerContext(customer: Customer): string {
     `Spend: GBP ${customer.spend}`,
     `Last seen: ${customer.last}`,
     `Tag: ${customer.tag}`,
+    customer.address ? `Address/delivery context: ${customer.address}` : undefined,
+    customer.company ? `Company/community: ${customer.company}` : undefined,
+    customer.role ? `Role/context: ${customer.role}` : undefined,
+    customer.location ? `Location context: ${customer.location}` : undefined,
+    customer.notes ? `Operator notes: ${customer.notes}` : undefined,
+    customer.sourceDate ? `First captured: ${customer.sourceDate}` : undefined,
     customer.birthMonth ? `Birthday month: ${customer.birthMonth}` : undefined,
   ]
     .filter(Boolean)
@@ -200,6 +206,9 @@ function fallbackMessage(customer: Customer, offer?: Body["offer"]): string {
   const first = customer.name.split(" ")[0] || customer.name;
   const voucher = offer?.voucher ?? "20% off your next visit";
   if (customer.visits === 0 || stageForCustomer(customer) === "lead") {
+    if (customer.source === "delivery" || customer.address) {
+      return `Hi ${first}, thanks for joining our customer list. Next time you order delivery or come by, show this message and we will sort ${voucher}.`;
+    }
     return `Hi ${first}, lovely to meet you. If you fancy trying us, show this message next time you come in and we will take care of ${voucher}.`;
   }
   return `Hi ${first}, quick one from ${customer.site}. We would love to see you again soon, so next time you are in, show this message for ${voucher}.`;

@@ -14,6 +14,13 @@ export interface BackendCustomerRow {
   birthMonth?: number;
   birthDay?: number;
   primarySiteId?: string;
+  notes?: string;
+  company?: string;
+  address?: string;
+  role?: string;
+  location?: string;
+  firstContactAt?: number;
+  sourceDate?: string;
 }
 
 export function customerFromBackend(
@@ -39,6 +46,13 @@ export function customerFromBackend(
     source: asCustomerSource(row.source),
     birthMonth: row.birthMonth,
     birthDay: row.birthDay,
+    notes: row.notes,
+    company: row.company,
+    address: row.address,
+    role: row.role,
+    location: row.location,
+    firstContactAt: row.firstContactAt,
+    sourceDate: row.sourceDate,
   };
 }
 
@@ -65,7 +79,7 @@ export function asPipelineStage(value?: string): PipelineStage | undefined {
 }
 
 export function asCustomerSource(value?: string): CustomerSource | undefined {
-  return ["walk-in", "qr", "outreach", "booking", "referral", "instagram", "google", "whatsapp", "event", "other"].includes(value ?? "")
+  return ["walk-in", "qr", "outreach", "booking", "referral", "instagram", "google", "delivery", "whatsapp", "event", "other"].includes(value ?? "")
     ? (value as CustomerSource)
     : undefined;
 }

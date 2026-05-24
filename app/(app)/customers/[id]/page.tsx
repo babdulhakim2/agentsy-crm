@@ -131,6 +131,7 @@ async function updateBackendCustomer(customer: Customer) {
       email: customer.email,
       tags: customer.tag ? [customer.tag] : [],
       customerSource: customer.source,
+      address: customer.address,
       birthMonth: customer.birthMonth,
       birthDay: customer.birthDay,
       pipelineStage: customer.pipelineStage,
