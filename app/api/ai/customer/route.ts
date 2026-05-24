@@ -47,12 +47,12 @@ export async function POST(req: NextRequest) {
 
     const message = await callOpenRouter(buildMessageMessages(body.customer, body.offer, body.restaurant), 0.7);
     if (!message.trim()) throw new Error("AI returned an empty draft.");
-    return NextResponse.json({ mode: "llm", message: cleanMessage(message) });
+    return NextResponse.json({ mode: "llm", message: ensureMessageSignature(cleanMessage(message), body.restaurant) });
   } catch (err) {
     const fallback =
       body.task === "insights"
         ? { insights: fallbackInsights(body.customer) }
-        : { message: fallbackMessage(body.customer, body.offer) };
+        : { message: fallbackMessage(body.customer, body.offer, body.restaurant) };
     return NextResponse.json({
       mode: "fallback",
       ...fallback,
@@ -126,7 +126,10 @@ function buildMessageMessages(
         `You write short WhatsApp messages for an independent UK restaurant.`,
         `Voice: warm, plain, personal, not salesy. No emojis. No exclamation marks.`,
         `The message must fit the customer's CRM stage and relationship history.`,
+        `Mention the restaurant name naturally in the message body.`,
+        `End with a human signature on separate lines: sender/owner name, then restaurant name.`,
         `Do not invent allergies, bookings, private details, or previous conversations.`,
+        `Do not use markdown, labels, placeholders, or bracketed notes.`,
         `Return only the message text.`,
       ].join("\n"),
     },
@@ -140,10 +143,14 @@ function buildMessageMessages(
         `Next action: ${next.label}`,
         `Next action detail: ${next.detail}`,
         offer ? `Selected offer: ${offer.label} (${offer.voucher})` : undefined,
+        `Required restaurant name in message: ${restaurantName(restaurant)}`,
+        `Required signature:`,
+        `${senderName(restaurant)}`,
+        `${restaurantName(restaurant)}`,
         customer.visits === 0
           ? `This person is still a lead. Invite them in for a first visit. Do not say "we missed you".`
           : `This person has visited before. Reference the relationship without sounding automated.`,
-        `Keep it under 65 words and make it ready to send on WhatsApp.`,
+        `Keep it under 75 words including the signature and make it ready to send on WhatsApp.`,
       ]
         .filter(Boolean)
         .join("\n"),
@@ -189,6 +196,33 @@ function cleanMessage(raw: string): string {
   return raw.replace(/^["']|["']$/g, "").trim();
 }
 
+function senderName(restaurant?: Body["restaurant"]): string {
+  return restaurant?.ownerName?.trim() || "Owner";
+}
+
+function restaurantName(restaurant?: Body["restaurant"]): string {
+  return restaurant?.name?.trim() || "the restaurant";
+}
+
+function ensureMessageSignature(message: string, restaurant?: Body["restaurant"]): string {
+  const sender = senderName(restaurant);
+  const restaurantLabel = restaurantName(restaurant);
+  let next = message.trim();
+  const lower = next.toLowerCase();
+  if (!lower.includes(restaurantLabel.toLowerCase())) {
+    next = `${next}\n\nThis is from ${restaurantLabel}.`;
+  }
+  if (!lower.includes(sender.toLowerCase())) {
+    next = `${next}\n\n${sender}`;
+  }
+  const lines = next.split("\n").map((line) => line.trim()).filter(Boolean);
+  const withoutExistingSignature = lines.filter((line) => {
+    const normalized = line.toLowerCase();
+    return normalized !== sender.toLowerCase() && normalized !== restaurantLabel.toLowerCase();
+  });
+  return [...withoutExistingSignature, sender, restaurantLabel].join("\n");
+}
+
 function fallbackInsights(customer: Customer): string[] {
   const next = nextActionForCustomer(customer);
   const stage = STAGE_BY_ID[stageForCustomer(customer)].label;
@@ -202,14 +236,17 @@ function fallbackInsights(customer: Customer): string[] {
   ].slice(0, 3);
 }
 
-function fallbackMessage(customer: Customer, offer?: Body["offer"]): string {
+function fallbackMessage(customer: Customer, offer?: Body["offer"], restaurant?: Body["restaurant"]): string {
   const first = customer.name.split(" ")[0] || customer.name;
   const voucher = offer?.voucher ?? "20% off your next visit";
+  const restaurantLabel = restaurantName(restaurant);
+  const sender = senderName(restaurant);
+  const sign = (body: string) => `${body}\n\n${sender}\n${restaurantLabel}`;
   if (customer.visits === 0 || stageForCustomer(customer) === "lead") {
     if (customer.source === "delivery" || customer.address) {
-      return `Hi ${first}, thanks for joining our customer list. Next time you order delivery or come by, show this message and we will sort ${voucher}.`;
+      return sign(`Hi ${first}, thanks for joining the customer list at ${restaurantLabel}. Next time you order delivery or come by, show this message and we will sort ${voucher}.`);
     }
-    return `Hi ${first}, lovely to meet you. If you fancy trying us, show this message next time you come in and we will take care of ${voucher}.`;
+    return sign(`Hi ${first}, lovely to meet you. If you fancy trying ${restaurantLabel}, show this message next time you come in and we will take care of ${voucher}.`);
   }
-  return `Hi ${first}, quick one from ${customer.site}. We would love to see you again soon, so next time you are in, show this message for ${voucher}.`;
+  return sign(`Hi ${first}, quick one from ${restaurantLabel}. We would love to see you again soon, so next time you are in, show this message for ${voucher}.`);
 }

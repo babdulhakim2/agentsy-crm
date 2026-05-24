@@ -36,39 +36,8 @@ interface Props {
   onDeleteCustomer?: (customer: Customer) => void | Promise<void>;
 }
 
-/**
- * Derive a small set of insights per customer. In production these come from
- * Convex queries over the visit history; for the demo we synthesize from the
- * customer's tag, recency, visits and spend so each profile feels real.
- */
-function deriveInsights(g: Customer): string[] {
-  const out: string[] = [];
-  if (g.recency === "crimson") {
-    out.push(
-      `Used to come every 2–3 weeks. Hasn't booked since ${g.last}. Strong candidate for a personal check-in.`
-    );
-  }
-  if (g.visits >= 10) {
-    const avg = Math.round(g.spend / g.visits);
-    out.push(`Top-decile loyalty — ${g.visits} visits with an average spend of £${avg} per cover.`);
-  }
-  if (g.birthMonth) {
-    const m = MONTH_NAMES[g.birthMonth - 1];
-    out.push(
-      `Birthday in ${m}${g.birthDay ? ` (the ${g.birthDay}${["st", "nd", "rd"][g.birthDay - 1] ?? "th"})` : ""} — birthday treat queues automatically.`
-    );
-  }
-  if (g.visits <= 2 && g.recency === "sage") {
-    out.push(`First or second visit — they're at the make-or-break moment for becoming a regular.`);
-  }
-  if (out.length === 0) {
-    out.push(`Steady regular. Spend is consistent and visits are well-spaced.`);
-  }
-  return out.slice(0, 3);
-}
-
 export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustomer, onDeleteCustomer }: Props) {
-  const { tenantName } = useSite();
+  const { tenantName, ownerName } = useSite();
   const [offerOpen, setOfferOpen] = React.useState(false);
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
@@ -76,8 +45,6 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
   const [stage, setStage] = React.useState<PipelineStage | undefined>(g.pipelineStage);
   const effectiveCustomer = { ...g, pipelineStage: stage };
   const nextAction = nextActionForCustomer(effectiveCustomer);
-  const [insights, setInsights] = React.useState<string[]>(() => deriveInsights(g));
-  const [insightMode, setInsightMode] = React.useState<"loading" | "llm" | "fallback">("fallback");
   const stageMeta = stage ? STAGE_BY_ID[stage] : undefined;
   const contactContext = [
     ["Notes", g.notes],
@@ -92,38 +59,6 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
     setStage(g.pipelineStage);
     setStagePickerOpen(false);
   }, [g.id, g.pipelineStage]);
-
-  React.useEffect(() => {
-    let active = true;
-    const fallback = deriveInsights(effectiveCustomer);
-    setInsights(fallback);
-    setInsightMode("loading");
-
-    fetch("/api/ai/customer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        task: "insights",
-        customer: effectiveCustomer,
-        restaurant: { name: tenantName },
-      }),
-    })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("AI request failed"))))
-      .then((data: { insights?: string[]; mode?: "llm" | "fallback" }) => {
-        if (!active) return;
-        if (data.insights?.length) setInsights(data.insights);
-        setInsightMode(data.mode ?? "fallback");
-      })
-      .catch(() => {
-        if (!active) return;
-        setInsights(fallback);
-        setInsightMode("fallback");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [g.id, stage, tenantName]);
 
   const updateStage = async (nextStage: PipelineStage | undefined) => {
     const previousStage = stage;
@@ -289,9 +224,7 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
           >
             <Icon.Send s={13} c="#fff" /> {nextAction.cta}
           </button>
-          <span className="chip">
-            {g.source ? SOURCE_LABEL[g.source] : "No source"}
-          </span>
+         
         </div>
       </div>
 
@@ -354,41 +287,6 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
         </div>
       </div>
 
-      {/* Agentsy-noticed insights — the "real CRM" moment */}
-      <div
-        className="card"
-        style={{
-          marginTop: 18,
-          padding: 16,
-          background: "var(--terracotta-tint)",
-          borderColor: "rgba(184,95,58,0.18)",
-        }}
-      >
-        <div
-          className="eyebrow"
-          style={{ color: "var(--terracotta)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}
-        >
-          <Icon.Sparkle s={11} c="var(--terracotta)" /> Agentsy noticed
-          <span style={{ color: "var(--ink-4)", fontWeight: 400, letterSpacing: 0, textTransform: "none" }}>
-            · {insightMode === "llm" ? "Gemini" : insightMode === "loading" ? "drafting" : "local"}
-          </span>
-        </div>
-        <ul style={{ margin: 0, paddingLeft: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          {insights.map((i, idx) => (
-            <li
-              key={idx}
-              style={{
-                fontSize: 13.5,
-                lineHeight: 1.5,
-                color: "var(--ink)",
-              }}
-            >
-              {i}
-            </li>
-          ))}
-        </ul>
-      </div>
-
       {/* Stats */}
       <div className="card" style={{ marginTop: 14, padding: "14px 0" }}>
         {[
@@ -444,7 +342,13 @@ export function CustomerDetailView({ customer: g, onBack, showBack, onEditCustom
         <CustomerVisitHistory customer={g} />
       </div>
 
-      <OfferComposer open={offerOpen} onClose={() => setOfferOpen(false)} customer={g} restaurantName={tenantName} />
+      <OfferComposer
+        open={offerOpen}
+        onClose={() => setOfferOpen(false)}
+        customer={g}
+        restaurantName={tenantName}
+        ownerName={ownerName}
+      />
       {onEditCustomer && (
         <EditCustomerSheet
           open={editOpen}

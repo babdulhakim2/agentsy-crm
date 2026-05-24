@@ -355,7 +355,6 @@ export default function CustomersPage() {
                       <span style={{ textTransform: "uppercase", fontSize: 9.5, letterSpacing: 0.4 }}>Next</span>
                       {nextAction.label}
                     </span>
-                    <span style={{ color: "var(--ink-3)" }}>{sourceLabel}</span>
                   </div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>

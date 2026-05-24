@@ -13,6 +13,7 @@ interface Props {
   onClose: () => void;
   customer: Customer;
   restaurantName: string;
+  ownerName: string;
 }
 
 const OFFERS: { id: string; label: string; voucher: string }[] = [
@@ -23,15 +24,36 @@ const OFFERS: { id: string; label: string; voucher: string }[] = [
   { id: "tasting", label: "Free tasting plate", voucher: "free tasting plate" },
 ];
 
-function buildDraft(customer: Customer, offer: typeof OFFERS[number]): string {
+function signedMessage(body: string, ownerName: string, restaurantName: string): string {
+  const sender = ownerName.trim() || "Owner";
+  const restaurant = restaurantName.trim() || customerFallbackRestaurant;
+  return `${body.trim()}\n\n${sender}\n${restaurant}`;
+}
+
+const customerFallbackRestaurant = "the restaurant";
+
+function buildDraft(customer: Customer, offer: typeof OFFERS[number], restaurantName: string, ownerName: string): string {
   const first = customer.name.split(" ")[0];
+  const restaurant = restaurantName.trim() || customerFallbackRestaurant;
   if (customer.visits === 0 || stageForCustomer(customer) === "lead") {
     if (customer.source === "delivery" || customer.address) {
-      return `Hi ${first}, thanks for joining our customer list. Next time you order delivery or come by, show this message and we'll sort ${offer.voucher}.`;
+      return signedMessage(
+        `Hi ${first}, thanks for joining the customer list at ${restaurant}. Next time you order delivery or come by, show this message and we'll sort ${offer.voucher}.`,
+        ownerName,
+        restaurant
+      );
     }
-    return `Hi ${first}, lovely to meet you. If you fancy trying us, show this message next time you come in and we'll sort ${offer.voucher}.`;
+    return signedMessage(
+      `Hi ${first}, lovely to meet you. If you fancy trying ${restaurant}, show this message next time you come in and we'll sort ${offer.voucher}.`,
+      ownerName,
+      restaurant
+    );
   }
-  return `${first} — quick one. We've missed you and want to say so. Next time you're in, ${offer.voucher} on the house. Just show this message at the till.`;
+  return signedMessage(
+    `Hi ${first}, quick one from ${restaurant}. We'd love to see you again soon, so next time you're in, ${offer.voucher} on the house. Just show this message at the till.`,
+    ownerName,
+    restaurant
+  );
 }
 
 function buildWhatsAppUrl(phone: string, body: string): string {
@@ -39,7 +61,7 @@ function buildWhatsAppUrl(phone: string, body: string): string {
   return `https://wa.me/${digits}?text=${encodeURIComponent(body)}`;
 }
 
-export function OfferComposer({ open, onClose, customer, restaurantName }: Props) {
+export function OfferComposer({ open, onClose, customer, restaurantName, ownerName }: Props) {
   const [offerId, setOfferId] = React.useState(OFFERS[2].id);
   const [body, setBody] = React.useState("");
   const [done, setDone] = React.useState(false);
@@ -55,7 +77,7 @@ export function OfferComposer({ open, onClose, customer, restaurantName }: Props
       setError(null);
       setDraftMode("fallback");
       const offer = OFFERS.find((o) => o.id === offerId) ?? OFFERS[0];
-      const fallback = buildDraft(customer, offer);
+      const fallback = buildDraft(customer, offer, restaurantName, ownerName);
       setBody(fallback);
       setDrafting(true);
 
@@ -68,7 +90,7 @@ export function OfferComposer({ open, onClose, customer, restaurantName }: Props
           customer,
           offer,
           nextAction: nextActionForCustomer(customer),
-          restaurant: { name: restaurantName },
+          restaurant: { name: restaurantName, ownerName },
         }),
       })
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error("AI draft failed"))))
@@ -90,12 +112,12 @@ export function OfferComposer({ open, onClose, customer, restaurantName }: Props
         active = false;
       };
     }
-  }, [open, offerId, customer, restaurantName]);
+  }, [open, offerId, customer, restaurantName, ownerName]);
 
   const handleOfferChange = (id: string) => {
     setOfferId(id);
     const offer = OFFERS.find((o) => o.id === id) ?? OFFERS[0];
-    setBody(buildDraft(customer, offer));
+    setBody(buildDraft(customer, offer, restaurantName, ownerName));
   };
 
   const handleSend = async () => {
